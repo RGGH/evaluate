@@ -1,0 +1,6 @@
+{
+  "model": "gemini-2.5-flash",
+  "prompt": "What is 2+2?",
+  "expected": "4",
+  "judge_model": "gemini-2.5-flash"
+}
