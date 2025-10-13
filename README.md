@@ -4,7 +4,8 @@
 
 </div>
 
-  [![Rust](https://github.com/RGGH/evaluate/actions/workflows/rust.yml/badge.svg)](https://github.com/RGGH/evaluate/actions/workflows/rust.yml) # Evaluate - An LLM Eval Framework made in Rust
+  [![Rust](https://github.com/RGGH/evaluate/actions/workflows/rust.yml/badge.svg)](https://github.com/RGGH/evaluate/actions/workflows/rust.yml) 
+  # Evaluate - An LLM Eval Framework made in Rust
 
 A lightweight, flexible evaluation framework for testing models with automated judging capabilities. (Gemini initially)
 
