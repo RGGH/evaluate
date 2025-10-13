@@ -35,6 +35,63 @@ function initTabs() {
     });
 }
 
+// Enhanced error detection and display
+function isApiKeyError(errorMessage) {
+    if (!errorMessage) return false;
+    const errorLower = errorMessage.toLowerCase();
+    return errorLower.includes('failed to respond') ||
+           errorLower.includes('modelfailure') ||
+           errorLower.includes('401') ||
+           errorLower.includes('403') ||
+           errorLower.includes('permission_denied') ||
+           errorLower.includes('api key') ||
+           errorLower.includes('authentication');
+}
+
+function displayError(container, message, modelName = null) {
+    container.classList.remove('hidden');
+    
+    const isKeyError = isApiKeyError(message);
+    
+    let errorHtml = '<div class="error-message">';
+    errorHtml += '<span style="font-size: 1.2em;">⚠️</span> ';
+    
+    if (isKeyError && modelName) {
+        errorHtml += `Model '${escapeHtml(modelName)}' failed to respond`;
+    } else {
+        errorHtml += escapeHtml(message);
+    }
+    
+    errorHtml += '</div>';
+    
+    if (isKeyError) {
+        errorHtml += `
+            <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 16px; margin-top: 16px;">
+                <div style="font-weight: 600; color: #856404; margin-bottom: 8px;">
+                    💡 Possible causes:
+                </div>
+                <ul style="margin: 8px 0; padding-left: 24px; color: #856404;">
+                    <li>Invalid or missing API key in <code>src/config.toml</code></li>
+                    <li>API key doesn't have access to the requested model</li>
+                    <li>API quota exceeded or billing not enabled</li>
+                    <li>Network connectivity issues</li>
+                </ul>
+                <div style="font-weight: 600; color: #856404; margin-top: 12px; margin-bottom: 8px;">
+                    🔧 How to fix:
+                </div>
+                <ol style="margin: 8px 0; padding-left: 24px; color: #856404;">
+                    <li>Check your <code>src/config.toml</code> file</li>
+                    <li>Verify your API key is correct and active</li>
+                    <li>Ensure the model name is spelled correctly (e.g., "gemini-1.5-flash")</li>
+                    <li>Check your API quota and billing status at <a href="https://aistudio.google.com" target="_blank">Google AI Studio</a></li>
+                </ol>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = errorHtml;
+}
+
 // Single Eval Form
 function initSingleEvalForm() {
     const form = document.getElementById('single-eval-form');
@@ -69,17 +126,22 @@ function initSingleEvalForm() {
             });
 
             const data = await response.json();
-            displaySingleResult(data);
             
-            // Add to results list
-            allResults.unshift({
-                ...data,
-                timestamp: new Date().toISOString()
-            });
-            updateResultsList();
+            if (data.error) {
+                displayError(resultContainer, data.error, payload.model);
+            } else {
+                displaySingleResult(data);
+                
+                // Add to results list
+                allResults.unshift({
+                    ...data,
+                    timestamp: new Date().toISOString()
+                });
+                updateResultsList();
+            }
 
         } catch (error) {
-            displayError(resultContainer, `Failed to run evaluation: ${error.message}`);
+            displayError(resultContainer, `Failed to run evaluation: ${error.message}`, payload.model);
         } finally {
             submitBtn.disabled = false;
             btnText.style.display = 'inline';
@@ -93,7 +155,7 @@ function displaySingleResult(data) {
     container.classList.remove('hidden');
     
     if (data.error) {
-        container.innerHTML = `<div class="error-message">${data.error}</div>`;
+        displayError(container, data.error);
         return;
     }
 
@@ -268,7 +330,7 @@ async function runBatchEval() {
         });
         
         const data = await response.json();
-        displayBatchResults(data);
+        displayBatchResults(data, evals);
         
         // Add to results list
         data.results.forEach(result => {
@@ -287,7 +349,7 @@ async function runBatchEval() {
     }
 }
 
-function displayBatchResults(data) {
+function displayBatchResults(data, originalEvals) {
     const container = document.getElementById('batch-result');
     container.classList.remove('hidden');
     
@@ -301,9 +363,11 @@ function displayBatchResults(data) {
     html += '<div class="batch-results-list">';
     data.results.forEach((result, index) => {
         const hasError = result.error || !result.result;
+        const modelName = originalEvals[index]?.model || result.result?.model || 'Unknown';
+        
         html += `<div class="batch-result-item ${hasError ? 'error' : ''}">`;
         html += `<div class="result-header">`;
-        html += `<h3>Evaluation ${index + 1}</h3>`;
+        html += `<h3>Evaluation ${index + 1} - ${escapeHtml(modelName)}</h3>`;
         
         if (result.result && result.result.judge_result) {
             const verdict = result.result.judge_result.verdict.toLowerCase();
@@ -317,7 +381,17 @@ function displayBatchResults(data) {
         html += '</div>';
         
         if (hasError) {
-            html += `<div class="error-message">${result.error || 'Unknown error'}</div>`;
+            const errorMsg = result.error || 'Unknown error';
+            html += `<div class="error-message">⚠️ ${escapeHtml(errorMsg)}</div>`;
+            
+            if (isApiKeyError(errorMsg)) {
+                html += `
+                    <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 0.9em;">
+                        <strong style="color: #856404;">💡 Check API key configuration</strong><br>
+                        <span style="color: #856404;">Verify your <code>src/config.toml</code> has a valid API key for this model.</span>
+                    </div>
+                `;
+            }
         } else {
             html += `<div class="result-section"><h4>Model</h4><pre>${result.result.model}</pre></div>`;
             html += `<div class="result-section"><h4>Output</h4><pre>${escapeHtml(result.result.model_output.substring(0, 200))}${result.result.model_output.length > 200 ? '...' : ''}</pre></div>`;
@@ -361,6 +435,13 @@ function updateResultsList() {
         if (evalData) {
             html += `<div class="result-item-content">`;
             html += `<strong>Prompt:</strong> ${escapeHtml(evalData.prompt.substring(0, 100))}${evalData.prompt.length > 100 ? '...' : ''}`;
+            html += `</div>`;
+        } else if (result.error) {
+            html += `<div class="result-item-content" style="color: #dc3545;">`;
+            html += `<strong>Error:</strong> ${escapeHtml(result.error.substring(0, 100))}`;
+            if (isApiKeyError(result.error)) {
+                html += ` <small>(Check API key)</small>`;
+            }
             html += `</div>`;
         }
         
@@ -437,6 +518,13 @@ function updateHistoryList() {
             html += `<div class="result-item-content">`;
             html += `<strong>Prompt:</strong> ${escapeHtml(result.prompt.substring(0, 100))}${result.prompt.length > 100 ? '...' : ''}`;
             html += `</div>`;
+        } else if (result.error_message) {
+            html += `<div class="result-item-content" style="color: #dc3545;">`;
+            html += `<strong>Error:</strong> ${escapeHtml(result.error_message.substring(0, 100))}`;
+            if (isApiKeyError(result.error_message)) {
+                html += ` <small>(Check API key)</small>`;
+            }
+            html += `</div>`;
         }
 
         html += `<div class="timestamp">${formatTimestamp(result.created_at)}</div>`;
@@ -489,14 +577,16 @@ function transformHistoryEntryToEvalResponse(historyEntry) {
     return {
         id: historyEntry.id,
         status: historyEntry.status,
-        timestamp: historyEntry.created_at, // Pass the timestamp through
+        timestamp: historyEntry.created_at,
         result: {
             model: historyEntry.model,
             prompt: historyEntry.prompt,
             model_output: historyEntry.model_output,
             expected: historyEntry.expected,
-            judge_result: historyEntry.judge_verdict ? { verdict: historyEntry.judge_verdict, reasoning: historyEntry.judge_reasoning } : null,
-            // Note: Latency and other fields are not in history, so they will be undefined.
+            judge_result: historyEntry.judge_verdict ? { 
+                verdict: historyEntry.judge_verdict, 
+                reasoning: historyEntry.judge_reasoning 
+            } : null,
         }
     };
 }
@@ -515,11 +605,6 @@ window.addEventListener('beforeunload', () => {
 });
 
 // Utility Functions
-function displayError(container, message) {
-    container.classList.remove('hidden');
-    container.innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
-}
-
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
