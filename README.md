@@ -3,6 +3,15 @@
 
 A lightweight, flexible evaluation framework for testing models with automated judging capabilities. (Gemini initially)
 
+### Install
+
+Add config.toml into src/
+
+```bash
+api_base = "https://generativelanguage.googleapis.com"
+api_key = "AIzaSyAkQnssdafsdfasdfasdfas7sdfas1c"
+```
+
 ## Features
 
 - 🚀 **Simple Configuration** - TOML-based config for API settings
