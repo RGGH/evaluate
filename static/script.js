@@ -1,6 +1,9 @@
 const API_BASE = 'http://127.0.0.1:8080/api/v1';
 
 let batchEvals = [];
+let allHistory = [];
+let historyCurrentPage = 1;
+const HISTORY_ITEMS_PER_PAGE = 10;
 let allResults = [];
 
 // Tab Management
@@ -8,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initSingleEvalForm();
     initBatchEval();
+    initHistoryTab();
     loadResults();
 });
 
@@ -24,6 +28,9 @@ function initTabs() {
 
             btn.classList.add('active');
             document.getElementById(`${targetTab}-tab`).classList.add('active');
+            if (targetTab === 'history') {
+                loadHistory();
+            }
         });
     });
 }
@@ -108,7 +115,7 @@ function displaySingleResult(data) {
     html += '</div>';
 
     // Add latency information
-    if (result.latency_ms !== undefined) {
+    if (result && result.latency_ms !== undefined) {
         html += '<div class="result-section">';
         html += '<h4>⏱️ Performance Metrics</h4>';
         html += '<pre>';
@@ -334,22 +341,26 @@ function updateResultsList() {
     
     let html = '';
     allResults.slice(0, 20).forEach((result, index) => {
-        const hasResult = result.result;
+        // Handle both live API response structure and the structure from the database/history
+        const evalData = result.result?.Success ? result.result.Success : result.result;
+
         html += `<div class="result-item" onclick="showResultDetail(${index})">`;
         html += '<div class="result-item-header">';
-        html += `<h4>${hasResult ? result.result.model : 'Evaluation'}</h4>`;
+        html += `<h4>${evalData ? evalData.model : 'Evaluation'}</h4>`;
         
-        if (hasResult && hasResult.judge_result) {
-            const verdict = hasResult.judge_result.verdict.toLowerCase();
+        if (evalData && evalData.judge_result) {
+            const verdict = evalData.judge_result.verdict.toLowerCase();
             html += `<span class="verdict-badge verdict-${verdict === 'pass' ? 'pass' : verdict === 'fail' ? 'fail' : 'uncertain'}">
                 ${verdict.toUpperCase()}
             </span>`;
+        } else if (result.error) {
+            html += `<span class="verdict-badge verdict-fail">ERROR</span>`;
         }
         html += '</div>';
         
-        if (hasResult) {
+        if (evalData) {
             html += `<div class="result-item-content">`;
-            html += `<strong>Prompt:</strong> ${escapeHtml(hasResult.prompt.substring(0, 100))}${hasResult.prompt.length > 100 ? '...' : ''}`;
+            html += `<strong>Prompt:</strong> ${escapeHtml(evalData.prompt.substring(0, 100))}${evalData.prompt.length > 100 ? '...' : ''}`;
             html += `</div>`;
         }
         
@@ -362,9 +373,132 @@ function updateResultsList() {
 
 function showResultDetail(index) {
     const result = allResults[index];
+    // The data from 'allResults' might have the nested 'Success' property.
+    // We create a consistent object for displaySingleResult.
+    const displayData = result.result?.Success ? { ...result, result: result.result.Success } : result;
+
+    document.querySelector('.tab-btn[data-tab="single"]').click(); // Switch to single eval tab
+    displaySingleResult(displayData);
+}
+
+function initHistoryTab() {
+    // The logic is triggered by the tab click handler in initTabs
+}
+
+async function loadHistory() {
+    const container = document.getElementById('history-list');
+    container.innerHTML = '<p class="empty-state">Loading history...</p>';
+
+    try {
+        const response = await fetch(`${API_BASE}/evals/history`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        allHistory = data.results || [];
+        historyCurrentPage = 1;
+        updateHistoryList();
+        updateHistoryPagination();
+    } catch (error) {
+        displayError(container, `Failed to load history: ${error.message}`);
+    }
+}
+
+function updateHistoryList() {
+    const container = document.getElementById('history-list');
+
+    if (allHistory.length === 0) {
+        container.innerHTML = '<p class="empty-state">No history found.</p>';
+        return;
+    }
+
+    let html = '';
+    const startIndex = (historyCurrentPage - 1) * HISTORY_ITEMS_PER_PAGE;
+    const endIndex = startIndex + HISTORY_ITEMS_PER_PAGE;
+    const pageItems = allHistory.slice(startIndex, endIndex);
+
+    pageItems.forEach((result, index) => {
+        const globalIndex = startIndex + index;
+        html += `<div class="result-item" onclick="showHistoryDetail(${globalIndex})">`;
+        html += '<div class="result-item-header">';
+        html += `<h4>${result.model || 'Evaluation'}</h4>`;
+
+        if (result.judge_verdict) {
+            const verdict = result.judge_verdict.toLowerCase();
+            html += `<span class="verdict-badge verdict-${verdict === 'pass' ? 'pass' : verdict === 'fail' ? 'fail' : 'uncertain'}">
+                ${verdict.toUpperCase()}
+            </span>`;
+        } else if (result.error_message) {
+            html += `<span class="verdict-badge verdict-fail">ERROR</span>`;
+        }
+        html += '</div>';
+
+        if (result.prompt) {
+            html += `<div class="result-item-content">`;
+            html += `<strong>Prompt:</strong> ${escapeHtml(result.prompt.substring(0, 100))}${result.prompt.length > 100 ? '...' : ''}`;
+            html += `</div>`;
+        }
+
+        html += `<div class="timestamp">${formatTimestamp(result.created_at)}</div>`;
+        html += '</div>';
+    });
+
+    container.innerHTML = html;
+}
+
+function updateHistoryPagination() {
+    const paginationContainer = document.getElementById('history-pagination');
+    const pageCount = Math.ceil(allHistory.length / HISTORY_ITEMS_PER_PAGE);
+
+    if (pageCount <= 1) {
+        paginationContainer.innerHTML = '';
+        return;
+    }
+
+    let html = '';
+    for (let i = 1; i <= pageCount; i++) {
+        html += `<button class="page-btn ${i === historyCurrentPage ? 'active' : ''}" onclick="goToHistoryPage(${i})">${i}</button>`;
+    }
+    paginationContainer.innerHTML = html;
+}
+
+function goToHistoryPage(pageNumber) {
+    historyCurrentPage = pageNumber;
+    updateHistoryList();
+    updateHistoryPagination();
+}
+
+function showHistoryDetail(index) {
+    if (index < 0 || index >= allHistory.length) return;
+    const result = allHistory[index];
     // Switch to single eval tab and display result
     document.querySelector('.tab-btn[data-tab="single"]').click();
-    displaySingleResult(result);
+    displaySingleResult(transformHistoryEntryToEvalResponse(result));
+}
+
+function transformHistoryEntryToEvalResponse(historyEntry) {
+    // This function transforms the flat HistoryEntry from the DB 
+    // into the nested structure that displaySingleResult expects.
+    if (historyEntry.error_message) {
+        return {
+            id: historyEntry.id,
+            status: 'error',
+            error: historyEntry.error_message,
+        };
+    }
+    return {
+        id: historyEntry.id,
+        status: historyEntry.status,
+        timestamp: historyEntry.created_at, // Pass the timestamp through
+        result: {
+            model: historyEntry.model,
+            prompt: historyEntry.prompt,
+            model_output: historyEntry.model_output,
+            expected: historyEntry.expected,
+            judge_result: historyEntry.judge_verdict ? { verdict: historyEntry.judge_verdict, reasoning: historyEntry.judge_reasoning } : null,
+            // Note: Latency and other fields are not in history, so they will be undefined.
+        }
+    };
 }
 
 function loadResults() {

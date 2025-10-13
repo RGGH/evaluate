@@ -17,6 +17,7 @@
             <button class="tab-btn active" data-tab="single">Single Eval</button>
             <button class="tab-btn" data-tab="batch">Batch Eval</button>
             <button class="tab-btn" data-tab="results">Results</button>
+            <button class="tab-btn" data-tab="history">History</button>
         </div>
 
         <!-- Single Eval Tab -->
@@ -88,6 +89,18 @@
             </div>
         </div>
     </div>
+
+    <!-- History Tab -->
+    <div id="history-tab" class="tab-content">
+        <div class="card">
+            <h2>Evaluation History</h2>
+            <div id="history-list" class="results-list">
+                <p class="empty-state">Loading history...</p>
+            </div>
+            <div id="history-pagination" class="pagination"></div>
+        </div>
+    </div>
+
 
     <script src="script.js"></script>
 </body>

@@ -26,7 +26,7 @@ struct Part {
     text: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EvalResult {
     pub model: String,
     pub prompt: String,
@@ -39,7 +39,7 @@ pub struct EvalResult {
     pub total_latency_ms: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JudgeResult {
     pub judge_model: String,
     pub verdict: JudgeVerdict,
@@ -47,11 +47,21 @@ pub struct JudgeResult {
     pub confidence: Option<f32>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum JudgeVerdict {
     Pass,
     Fail,
     Uncertain,
+}
+
+impl std::fmt::Display for JudgeVerdict {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JudgeVerdict::Pass => write!(f, "Pass"),
+            JudgeVerdict::Fail => write!(f, "Fail"),
+            JudgeVerdict::Uncertain => write!(f, "Uncertain"),
+        }
+    }
 }
 
 /// Calls the Gemini API with a given prompt and returns the model's response text and latency.
