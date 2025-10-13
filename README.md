@@ -13,9 +13,11 @@ A lightweight, flexible evaluation framework for testing models with automated j
 - Specify LLM provider for LLM and Judge
 
 ## Todo
- [] Read models from config
- [] Visualize output
- [] Image Classifier Evals
+
+- [ ] Read models from config
+- [ ] Visualize output
+- [ ] Image Classifier Evals
+- [ ] Concurrent execution of run_eval (use tokio::join_all)
 
 ### Install
 
