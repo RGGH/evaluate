@@ -28,6 +28,16 @@ api_base = "https://generativelanguage.googleapis.com"
 api_key = "AIzaSyAkQnssdafsdfasdfasxxxxxxxxxxxxxxxxxxx"
 ```
 
+```
+cargo run
+```
+
+You should see output similar to:
+```
+[INFO] Starting database migration...
+[INFO] Starting server at 127.0.0.1:8080
+```
+
 ## Features
 
 - 🚀 **Simple Configuration** - TOML-based config for API settings
