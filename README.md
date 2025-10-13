@@ -9,7 +9,7 @@ Add config.toml into src/
 
 ```bash
 api_base = "https://generativelanguage.googleapis.com"
-api_key = "AIzaSyAkQnssdafsdfasdfasdfas7sdfas1c"
+api_key = "AIzaSyAkQnssdafsdfasdfasxxxxxxxxxxxxxxxxxxx"
 ```
 
 ## Features
