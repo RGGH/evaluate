@@ -9,6 +9,9 @@
 
 A lightweight, flexible evaluation framework for testing models with automated judging capabilities. (Gemini initially)
 
+- Sqlite database for saving history
+- Specify LLM provider for LLM and Judge
+
 ### Install
 
 ```bash
