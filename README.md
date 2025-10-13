@@ -12,6 +12,11 @@ A lightweight, flexible evaluation framework for testing models with automated j
 - Sqlite database for saving history
 - Specify LLM provider for LLM and Judge
 
+## Todo
+[ ] Read models from config
+[ ] Visualize output
+[ ] Image Classifier Evals
+
 ### Install
 
 ```bash
@@ -48,7 +53,7 @@ You should see output similar to:
 - ⚡ **Async Execution** - Fast parallel evaluation support
 - 🎯 **Flexible** - Test any Gemini model with any prompt
 
-# Sample output
+# Sample output - API 
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/evals/run \
 -H "Content-Type: application/json" \
