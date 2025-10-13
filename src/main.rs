@@ -18,6 +18,12 @@ async fn main() -> std::io::Result<()> {
         eprintln!("   Make sure DATABASE_URL is set in your environment");
     }
     
+    // Debug: Check if DATABASE_URL is set
+    match std::env::var("DATABASE_URL") {
+        Ok(url) => println!("✅ DATABASE_URL set to: {}", url),
+        Err(_) => eprintln!("❌ DATABASE_URL not set!"),
+    }
+    
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     
     let app_config = config::AppConfig::from_file("src/config.toml")

@@ -1,27 +1,46 @@
-// src/database.rs - Using runtime queries instead of compile-time macros
+// src/database.rs - Fixed directory creation
 use crate::models::{ApiResponse, EvalResult};
 use sqlx::{sqlite::SqlitePoolOptions, Row, SqlitePool};
 use std::path::PathBuf;
 
 pub async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     let db_path = get_db_path()?;
-    let db_url = format!("sqlite:{}", db_path.to_str().unwrap());
-
+    
+    // Create parent directory BEFORE attempting to connect
     if let Some(parent) = db_path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
+        std::fs::create_dir_all(parent)
             .map_err(|e| sqlx::Error::Io(e))?;
+        println!("✅ Created database directory: {}", parent.display());
     }
+    
+    // Ensure the path is absolute and properly formatted
+    let absolute_path = if db_path.is_relative() {
+        std::env::current_dir()
+            .map_err(|e| sqlx::Error::Io(e))?
+            .join(&db_path)
+    } else {
+        db_path.clone()
+    };
+    
+    println!("📦 Database file path: {}", absolute_path.display());
+    
+    // SQLite connection string needs to be properly formatted
+    let db_url = format!("sqlite://{}?mode=rwc", absolute_path.display());
+    println!("📦 Connecting to: {}", db_url);
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect(&db_url)
         .await?;
 
+    println!("✅ Database connected successfully");
+
     // Run migrations from the migrations directory
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await?;
+
+    println!("✅ Database migrations completed");
 
     Ok(pool)
 }
@@ -78,7 +97,6 @@ pub async fn save_evaluation(pool: &SqlitePool, response: &ApiResponse) -> Resul
 
     let created_at_str = created_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
 
-    // Use runtime query instead of compile-time macro
     sqlx::query(
         r#"
         INSERT INTO evaluations (id, status, model, prompt, model_output, expected, judge_model, judge_verdict, judge_reasoning, error_message, created_at)
