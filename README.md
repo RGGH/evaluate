@@ -1,4 +1,5 @@
-# Eval Framework
+[![Rust](https://github.com/RGGH/evaluate/actions/workflows/rust.yml/badge.svg)](https://github.com/RGGH/evaluate/actions/workflows/rust.yml)
+# Evaluate - LLM Eval Framework
 
 A lightweight, flexible evaluation framework for testing models with automated judging capabilities. (Gemini initially)
 
