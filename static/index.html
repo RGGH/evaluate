@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eval API - Model Evaluation Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Eval API Dashboard</h1>
+            <p class="subtitle">Model Evaluation & Testing Platform</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="single">Single Eval</button>
+            <button class="tab-btn" data-tab="batch">Batch Eval</button>
+            <button class="tab-btn" data-tab="results">Results</button>
+        </div>
+
+        <!-- Single Eval Tab -->
+        <div id="single-tab" class="tab-content active">
+            <div class="card">
+                <h2>Run Single Evaluation</h2>
+                <form id="single-eval-form">
+                    <div class="form-group">
+                        <label for="model">Model Name</label>
+                        <input type="text" id="model" name="model" placeholder="gemini-1.5-flash" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="prompt">Prompt</label>
+                        <textarea id="prompt" name="prompt" rows="4" placeholder="Enter your prompt here..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="expected">Expected Output (Optional)</label>
+                        <textarea id="expected" name="expected" rows="3" placeholder="Expected response for comparison..."></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="judge-model">Judge Model (Optional)</label>
+                            <input type="text" id="judge-model" name="judge_model" placeholder="gemini-1.5-pro">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="criteria">Evaluation Criteria (Optional)</label>
+                            <input type="text" id="criteria" name="criteria" placeholder="Custom evaluation criteria...">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <span class="btn-text">Run Evaluation</span>
+                        <span class="spinner hidden"></span>
+                    </button>
+                </form>
+
+                <div id="single-result" class="result-container hidden"></div>
+            </div>
+        </div>
+
+        <!-- Batch Eval Tab -->
+        <div id="batch-tab" class="tab-content">
+            <div class="card">
+                <h2>Run Batch Evaluations</h2>
+                <div class="batch-controls">
+                    <button id="add-eval-btn" class="btn btn-secondary">+ Add Evaluation</button>
+                    <button id="run-batch-btn" class="btn btn-primary">
+                        <span class="btn-text">Run Batch</span>
+                        <span class="spinner hidden"></span>
+                    </button>
+                </div>
+
+                <div id="batch-evals-container"></div>
+                <div id="batch-result" class="result-container hidden"></div>
+            </div>
+        </div>
+
+        <!-- Results Tab -->
+        <div id="results-tab" class="tab-content">
+            <div class="card">
+                <h2>Recent Results</h2>
+                <div id="results-list" class="results-list">
+                    <p class="empty-state">No results yet. Run an evaluation to see results here.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

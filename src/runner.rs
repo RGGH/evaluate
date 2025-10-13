@@ -4,6 +4,7 @@ use crate::errors::{EvalError, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::time::Instant;
 
 #[derive(Deserialize)]
 struct GeminiResponse {
@@ -33,6 +34,9 @@ pub struct EvalResult {
     pub expected: Option<String>,
     pub judge_result: Option<JudgeResult>,
     pub timestamp: String,
+    pub latency_ms: u64,
+    pub judge_latency_ms: Option<u64>,
+    pub total_latency_ms: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -50,14 +54,14 @@ pub enum JudgeVerdict {
     Uncertain,
 }
 
-/// Calls the Gemini API with a given prompt and returns the model's response text.
+/// Calls the Gemini API with a given prompt and returns the model's response text and latency.
 async fn call_gemini_api(
     client: &Client,
     api_base: &str,
     api_key: &str,
     model: &str,
     prompt: &str,
-) -> Result<String> {
+) -> Result<(String, u64)> {
     let url = format!(
         "{}/v1beta/models/{}:generateContent",
         api_base.trim_end_matches('/'),
@@ -70,6 +74,8 @@ async fn call_gemini_api(
         "contents": [{"parts": [{"text": prompt}]}]
     });
 
+    let start = Instant::now();
+    
     let resp = client
         .post(&url)
         .header("x-goog-api-key", api_key)
@@ -78,7 +84,9 @@ async fn call_gemini_api(
         .await?;
 
     let status = resp.status();
-    println!("📥 Response status: {}", status);
+    let latency_ms = start.elapsed().as_millis() as u64;
+    
+    println!("📥 Response status: {} ({}ms)", status, latency_ms);
 
     if !status.is_success() {
         let error_body = resp.text().await.unwrap_or_else(|_| "Could not read error body".to_string());
@@ -108,7 +116,7 @@ async fn call_gemini_api(
         return Err(EvalError::EmptyResponse);
     }
 
-    Ok(output.to_string())
+    Ok((output.to_string(), latency_ms))
 }
 
 /// Parse judge response to extract verdict and reasoning
@@ -178,6 +186,7 @@ pub async fn run_eval(
     eval: &EvalConfig, 
     client: &Client
 ) -> Result<EvalResult> {
+    let eval_start = Instant::now();
     let separator = "=".repeat(60);
     println!("\n{}", separator);
     println!("🎯 Starting evaluation for model: {}", eval.model);
@@ -186,7 +195,7 @@ pub async fn run_eval(
     // Step 1: Call the target model
     println!("📝 Prompt: {}", eval.prompt);
     
-    let model_output = call_gemini_api(
+    let (model_output, latency_ms) = call_gemini_api(
         client,
         &app.api_base,
         &app.api_key,
@@ -201,9 +210,10 @@ pub async fn run_eval(
         }
     })?;
 
-    println!("\n✅ Model Output:\n{}\n", model_output);
+    println!("\n✅ Model Output ({}ms):\n{}\n", latency_ms, model_output);
 
     // Step 2: Run judge evaluation if expected output provided
+    let mut judge_latency_ms = None;
     let judge_result = if let (Some(expected), Some(judge_model)) = 
         (&eval.expected, &eval.judge_model) {
         
@@ -224,8 +234,9 @@ pub async fn run_eval(
         )
         .await
         {
-            Ok(judge_response) => {
-                println!("\n⚖️  Judge Response:\n{}\n", judge_response);
+            Ok((judge_response, judge_latency)) => {
+                judge_latency_ms = Some(judge_latency);
+                println!("\n⚖️  Judge Response ({}ms):\n{}\n", judge_latency, judge_response);
                 
                 let mut result = parse_judge_response(&judge_response);
                 result.judge_model = judge_model.clone();
@@ -252,6 +263,8 @@ pub async fn run_eval(
         None
     };
 
+    let total_latency_ms = eval_start.elapsed().as_millis() as u64;
+    println!("⏱️  Total evaluation time: {}ms", total_latency_ms);
     println!("\n{}\n", separator);
 
     Ok(EvalResult {
@@ -261,6 +274,9 @@ pub async fn run_eval(
         expected: eval.expected.clone(),
         judge_result,
         timestamp: chrono::Utc::now().to_rfc3339(),
+        latency_ms,
+        judge_latency_ms,
+        total_latency_ms,
     })
 }
 
@@ -271,6 +287,7 @@ pub async fn run_batch_evals(
     client: &Client,
 ) -> Vec<Result<EvalResult>> {
     let mut results = Vec::new();
+    let batch_start = Instant::now();
     
     for (idx, eval) in evals.iter().enumerate() {
         println!("\n🔄 Running eval {}/{}", idx + 1, evals.len());
@@ -282,6 +299,9 @@ pub async fn run_batch_evals(
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         }
     }
+    
+    let batch_total_ms = batch_start.elapsed().as_millis() as u64;
+    println!("\n📊 Batch completed in {}ms", batch_total_ms);
     
     results
 }
