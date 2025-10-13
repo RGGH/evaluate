@@ -44,3 +44,8 @@ curl -X POST http://127.0.0.1:8080/api/v1/evals/run \
   "error": null
 }
 ```
+---
+
+# Evaluate History
+
+<img width="1402" height="979" alt="image" src="https://github.com/user-attachments/assets/03cdd052-8fd3-444b-8dec-dc5ce7ebfc9d" />
