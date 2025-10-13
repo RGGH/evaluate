@@ -12,7 +12,16 @@ A lightweight, flexible evaluation framework for testing models with automated j
 
 ### Install
 
+```bash
+# 1. Clone the repository
+git clone git@github.com:RGGH/evaluate.git
+
+# 2. Navigate into the new project directory
+cd evaluate
+```
+
 Add config.toml into src/
+
 
 ```bash
 api_base = "https://generativelanguage.googleapis.com"
