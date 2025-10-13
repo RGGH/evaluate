@@ -1,8 +1,10 @@
 [![Rust](https://github.com/RGGH/evaluate/actions/workflows/rust.yml/badge.svg)](https://github.com/RGGH/evaluate/actions/workflows/rust.yml)
 
-<img width="687" height="391" alt="Screenshot from 2025-10-13 21-00-43" src="https://github.com/user-attachments/assets/35a48b4c-e2cb-4749-9516-54777f539eec" />
+<p align="center">
+  <img width="687" height="391" alt="Screenshot from 2025-10-13 21-00-43" src="https://github.com/user-attachments/assets/35a48b4c-e2cb-4749-9516-54777b539eec" />
+</p>
 
-# Evaluate - LLM Eval Framework made in Rust
+# Evaluate - An LLM Eval Framework made in Rust
 
 A lightweight, flexible evaluation framework for testing models with automated judging capabilities. (Gemini initially)
 
