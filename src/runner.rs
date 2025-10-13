@@ -1,110 +1,287 @@
 // src/runner.rs
-use crate::config::EvalConfig;
+use crate::config::{AppConfig, EvalConfig};
+use crate::errors::{EvalError, Result};
 use reqwest::Client;
-use serde_json::json;
-use anyhow::{Result, Context};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 
-/// Run a single eval using Gemini directly
-/// Sends the prompt to the target model and optionally asks the judge model
-pub async fn run_eval(app: &crate::config::AppConfig, eval: &EvalConfig) -> Result<()> {
-    let client = Client::new();
-    
-    // Step 1: Call the target model
-    let model_url = format!(
+#[derive(Deserialize)]
+struct GeminiResponse {
+    candidates: Vec<Candidate>,
+}
+
+#[derive(Deserialize)]
+struct Candidate {
+    content: Content,
+}
+
+#[derive(Deserialize)]
+struct Content {
+    parts: Vec<Part>,
+}
+
+#[derive(Deserialize)]
+struct Part {
+    text: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EvalResult {
+    pub model: String,
+    pub prompt: String,
+    pub model_output: String,
+    pub expected: Option<String>,
+    pub judge_result: Option<JudgeResult>,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JudgeResult {
+    pub judge_model: String,
+    pub verdict: JudgeVerdict,
+    pub reasoning: Option<String>,
+    pub confidence: Option<f32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum JudgeVerdict {
+    Pass,
+    Fail,
+    Uncertain,
+}
+
+/// Calls the Gemini API with a given prompt and returns the model's response text.
+async fn call_gemini_api(
+    client: &Client,
+    api_base: &str,
+    api_key: &str,
+    model: &str,
+    prompt: &str,
+) -> Result<String> {
+    let url = format!(
         "{}/v1beta/models/{}:generateContent",
-        app.api_base.trim_end_matches('/'),
-        eval.model
+        api_base.trim_end_matches('/'),
+        model
     );
-    
-    println!("📡 Calling: {}", model_url);
-    
+
+    println!("📡 Calling: {} with model: {}", url, model);
+
     let body = json!({
-        "contents": [{
-            "parts": [{
-                "text": eval.prompt
-            }]
-        }]
+        "contents": [{"parts": [{"text": prompt}]}]
     });
-    
-    let resp = client.post(&model_url)
-        .header("x-goog-api-key", &app.api_key)
-        .header("Content-Type", "application/json")
+
+    let resp = client
+        .post(&url)
+        .header("x-goog-api-key", api_key)
         .json(&body)
         .send()
-        .await
-        .context("Failed to send request")?;
-    
+        .await?;
+
     let status = resp.status();
     println!("📥 Response status: {}", status);
-    
-    let response_text = resp.text().await?;
-    println!("📄 Response body: {}", response_text);
-    
-    if response_text.is_empty() {
-        anyhow::bail!("Empty response from API");
-    }
-    
-    let response_json: serde_json::Value = serde_json::from_str(&response_text)
-        .context("Failed to parse response as JSON")?;
-    
-    // Check for error in response
-    if let Some(error) = response_json.get("error") {
-        anyhow::bail!("API Error: {}", error);
-    }
-    
-    let model_output = response_json["candidates"][0]["content"]["parts"][0]["text"]
-        .as_str()
-        .unwrap_or("No response")
-        .trim()
-        .to_string();
-    
-    println!("🔹 Model Output [{}]: {}", eval.model, model_output);
-    
-    // Step 2: Optional judge model for semantic equivalence
-    if let (Some(expected), Some(judge_model)) = (&eval.expected, &eval.judge_model) {
-        let judge_url = format!(
-            "{}/v1beta/models/{}:generateContent",
-            app.api_base.trim_end_matches('/'),
-            judge_model
-        );
-        
-        let judge_prompt = format!(
-            "Compare the following two texts. Do they have the same meaning?\n\
-             Expected: {}\nModel Output: {}\nReply only with 'YES' or 'NO'.",
-            expected, model_output
-        );
-        
-        let judge_body = json!({
-            "contents": [{
-                "parts": [{
-                    "text": judge_prompt
-                }]
-            }]
+
+    if !status.is_success() {
+        let error_body = resp.text().await.unwrap_or_else(|_| "Could not read error body".to_string());
+        return Err(EvalError::ApiError {
+            status: status.as_u16(),
+            body: error_body,
         });
-        
-        let judge_resp = client.post(&judge_url)
-            .header("x-goog-api-key", &app.api_key)
-            .header("Content-Type", "application/json")
-            .json(&judge_body)
-            .send()
-            .await?;
-        
-        let judge_status = judge_resp.status();
-        let judge_text = judge_resp.text().await?;
-        
-        if !judge_status.is_success() {
-            println!("⚠️ Judge request failed: {} - {}", judge_status, judge_text);
-            return Ok(());
+    }
+
+    let response_json: Value = resp.json().await?;
+
+    if let Some(error) = response_json.get("error") {
+        return Err(EvalError::ApiResponse(error.to_string()));
+    }
+
+    let output = response_json
+        .get("candidates")
+        .and_then(|c| c.get(0))
+        .and_then(|c| c.get("content"))
+        .and_then(|c| c.get("parts"))
+        .and_then(|p| p.get(0))
+        .and_then(|p| p.get("text"))
+        .and_then(|t| t.as_str())
+        .ok_or_else(|| EvalError::UnexpectedResponse(response_json.to_string()))?;
+
+    if output.is_empty() {
+        return Err(EvalError::EmptyResponse);
+    }
+
+    Ok(output.to_string())
+}
+
+/// Parse judge response to extract verdict and reasoning
+fn parse_judge_response(response: &str) -> JudgeResult {
+    let response_lower = response.to_lowercase();
+    
+    // Try to extract structured response if available
+    let verdict = if response_lower.contains("verdict: pass") || 
+                     (response_lower.starts_with("yes") || response_lower.contains("yes, they")) {
+        JudgeVerdict::Pass
+    } else if response_lower.contains("verdict: fail") || 
+              (response_lower.starts_with("no") || response_lower.contains("no, they")) {
+        JudgeVerdict::Fail
+    } else {
+        JudgeVerdict::Uncertain
+    };
+
+    // Extract reasoning if present (look for lines after the verdict)
+    let reasoning = if response.len() > 20 {
+        Some(response.to_string())
+    } else {
+        None
+    };
+
+    JudgeResult {
+        judge_model: "unknown".to_string(),
+        verdict,
+        reasoning,
+        confidence: None,
+    }
+}
+
+/// Enhanced judge prompt with better structure
+fn create_judge_prompt(expected: &str, actual: &str, criteria: Option<&str>) -> String {
+    let base_criteria = criteria.unwrap_or(
+        "The outputs should convey the same core meaning, even if phrased differently."
+    );
+
+    format!(
+        r#"You are an expert evaluator comparing two text outputs.
+
+EVALUATION CRITERIA:
+{}
+
+EXPECTED OUTPUT:
+{}
+
+ACTUAL OUTPUT:
+{}
+
+INSTRUCTIONS:
+1. Carefully compare both outputs
+2. Consider semantic equivalence, not just exact wording
+3. Provide your verdict as the first line: "Verdict: PASS" or "Verdict: FAIL"
+4. Then explain your reasoning in 2-3 sentences
+
+Your evaluation:"#,
+        base_criteria,
+        expected,
+        actual
+    )
+}
+
+/// Run a single eval with comprehensive LLM-as-a-judge evaluation
+pub async fn run_eval(
+    app: &AppConfig, 
+    eval: &EvalConfig, 
+    client: &Client
+) -> Result<EvalResult> {
+    let separator = "=".repeat(60);
+    println!("\n{}", separator);
+    println!("🎯 Starting evaluation for model: {}", eval.model);
+    println!("{}\n", separator);
+
+    // Step 1: Call the target model
+    println!("📝 Prompt: {}", eval.prompt);
+    
+    let model_output = call_gemini_api(
+        client,
+        &app.api_base,
+        &app.api_key,
+        &eval.model,
+        &eval.prompt,
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("❌ Model failed: {}", e);
+        EvalError::ModelFailure {
+            model: eval.model.clone(),
         }
+    })?;
+
+    println!("\n✅ Model Output:\n{}\n", model_output);
+
+    // Step 2: Run judge evaluation if expected output provided
+    let judge_result = if let (Some(expected), Some(judge_model)) = 
+        (&eval.expected, &eval.judge_model) {
         
-        let judge_json: serde_json::Value = serde_json::from_str(&judge_text)?;
-        let judge_result = judge_json["candidates"][0]["content"]["parts"][0]["text"]
-            .as_str()
-            .unwrap_or("No judge response")
-            .trim();
+        println!("⚖️  Running judge evaluation with model: {}", judge_model);
         
-        println!("🔸 Judge Output [{}]: {}", judge_model, judge_result);
+        let judge_prompt = create_judge_prompt(
+            expected,
+            &model_output,
+            eval.criteria.as_deref()
+        );
+
+        match call_gemini_api(
+            client,
+            &app.api_base,
+            &app.api_key,
+            judge_model,
+            &judge_prompt,
+        )
+        .await
+        {
+            Ok(judge_response) => {
+                println!("\n⚖️  Judge Response:\n{}\n", judge_response);
+                
+                let mut result = parse_judge_response(&judge_response);
+                result.judge_model = judge_model.clone();
+                
+                match result.verdict {
+                    JudgeVerdict::Pass => println!("✅ VERDICT: PASS"),
+                    JudgeVerdict::Fail => println!("❌ VERDICT: FAIL"),
+                    JudgeVerdict::Uncertain => println!("⚠️  VERDICT: UNCERTAIN"),
+                }
+                
+                Some(result)
+            }
+            Err(e) => {
+                let judge_error = EvalError::JudgeFailure {
+                    model: judge_model.clone(),
+                    source: Box::new(e),
+                };
+                eprintln!("⚠️  Judge evaluation failed: {}", judge_error);
+                None
+            }
+        }
+    } else {
+        println!("ℹ️  No judge evaluation (no expected output or judge model specified)");
+        None
+    };
+
+    println!("\n{}\n", separator);
+
+    Ok(EvalResult {
+        model: eval.model.clone(),
+        prompt: eval.prompt.clone(),
+        model_output,
+        expected: eval.expected.clone(),
+        judge_result,
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    })
+}
+
+/// Run multiple evals and aggregate results
+pub async fn run_batch_evals(
+    app: &AppConfig,
+    evals: Vec<EvalConfig>,
+    client: &Client,
+) -> Vec<Result<EvalResult>> {
+    let mut results = Vec::new();
+    
+    for (idx, eval) in evals.iter().enumerate() {
+        println!("\n🔄 Running eval {}/{}", idx + 1, evals.len());
+        let result = run_eval(app, eval, client).await;
+        results.push(result);
+        
+        // Add small delay between requests to avoid rate limiting
+        if idx < evals.len() - 1 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        }
     }
     
-    Ok(())
+    results
 }

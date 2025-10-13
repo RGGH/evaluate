@@ -1,6 +1,6 @@
 {
   "model": "gemini-2.5-flash",
-  "prompt": "What is 2+2?",
+  "prompt": "What is 2 + 2? Answer with only the number.",
   "expected": "4",
   "judge_model": "gemini-2.5-flash"
 }

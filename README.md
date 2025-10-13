@@ -276,3 +276,47 @@ Built with:
 - [Reqwest](https://github.com/seanmonstar/reqwest) - HTTP client
 - [Serde](https://serde.rs) - Serialization
 - Google Gemini API
+
+# Todo
+```bash
+POST /api/v1/evals/run        # Run a single eval
+POST /api/v1/evals/batch      # Run multiple evals
+GET  /api/v1/evals/:id        # Get eval results
+GET  /api/v1/evals/:id/status # Check eval status
+POST /api/v1/experiments      # Create eval experiments
+GET  /api/v1/experiments/:id  # Get experiment results
+```
+
+# Sample output
+```
+curl -X POST http://127.0.0.1:8080/api/v1/evals/run \
+-H "Content-Type: application/json" \
+-d '{
+  "model": "gemini-2.5-pro",             
+  "prompt": "What is the capital of France?", 
+  "expected": "Paris",
+  "judge_model": "gemini-2.5-pro",             
+  "criteria": "Does the output correctly name the capital city?"
+}' | jq
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   909  100   681  100   228     63     21  0:00:10  0:00:10 --:--:--   150
+{
+  "id": "619cd32a-4376-4969-ac48-0f25b37bc933",
+  "status": "passed",
+  "result": {
+    "model": "gemini-2.5-pro",
+    "prompt": "What is the capital of France?",
+    "model_output": "The capital of France is **Paris**.",
+    "expected": "Paris",
+    "judge_result": {
+      "judge_model": "gemini-2.5-pro",
+      "verdict": "Pass",
+      "reasoning": "Verdict: PASS\n\nThe actual output correctly names Paris as the capital city, which is the core requirement of the evaluation criteria. Although it is a complete sentence rather than just the city name, it is semantically equivalent to the expected output. The necessary information is present and accurate.",
+      "confidence": null
+    },
+    "timestamp": "2025-10-13T08:48:38.987866175+00:00"
+  },
+  "error": null
+}
+```

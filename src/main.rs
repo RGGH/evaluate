@@ -1,18 +1,30 @@
 // src/main.rs
-mod runner;
+mod api;
 mod config;
+mod errors;
+mod runner;
 
-use crate::runner::*;
-use anyhow::Result;
+use actix_web::{middleware, App, HttpServer};
+use api::{configure_routes, AppState};
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let app_config = config::AppConfig::from_file("src/config.toml")?;
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     
-    for eval_path in &app_config.evals {
-        let eval = config::EvalConfig::from_file(eval_path)?;
-        run_eval(&app_config, &eval).await?;
-    }
+    let app_config = config::AppConfig::from_file("src/config.toml")
+        .expect("Failed to load config");
     
-    Ok(())
+    let state = AppState::new(app_config);
+    
+    println!("🚀 Starting server at http://127.0.0.1:8080");
+    
+    HttpServer::new(move || {
+        App::new()
+            .app_data(actix_web::web::Data::new(state.clone()))
+            .wrap(middleware::Logger::default())
+            .configure(configure_routes)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
