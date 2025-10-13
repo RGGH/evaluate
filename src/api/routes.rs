@@ -10,6 +10,7 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
                 web::scope("/evals")
                     .route("/run", web::post().to(handlers::run_eval))
                     .route("/batch", web::post().to(handlers::run_batch))
+                    .route("/history", web::get().to(handlers::get_history))
                     .route("/{id}", web::get().to(handlers::get_eval))
                     .route("/{id}/status", web::get().to(handlers::get_status))
             )
@@ -20,3 +21,4 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
             )
     );
 }
+
