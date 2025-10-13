@@ -12,7 +12,7 @@ A lightweight, flexible evaluation framework for testing models with automated j
 - 🎯 **Flexible** - Test any Gemini model with any prompt
 
 # Sample output
-```
+```bash
 curl -X POST http://127.0.0.1:8080/api/v1/evals/run \
 -H "Content-Type: application/json" \
 -d '{
@@ -46,6 +46,13 @@ curl -X POST http://127.0.0.1:8080/api/v1/evals/run \
 ```
 ---
 
-# Evaluate History
+# Built in GUI 
+
+### Single Eval
+
+<img width="1402" height="979" alt="image" src="https://github.com/user-attachments/assets/c705cd51-e9b8-4308-b985-f837445f2ea4" />
+
+
+### History
 
 <img width="1402" height="979" alt="image" src="https://github.com/user-attachments/assets/03cdd052-8fd3-444b-8dec-dc5ce7ebfc9d" />
