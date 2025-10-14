@@ -7,7 +7,7 @@
 
 # Evaluate - An LLM Eval Framework made in Rust
 
-A lightweight, flexible evaluation framework for testing models with automated judging capabilities. (Gemini initially)
+A lightweight, flexible evaluation framework for testing models with automated judging capabilities, supporting both Gemini and Ollama.
 
 - Sqlite database for saving history
 - Specify LLM provider for LLM and Judge

@@ -37,6 +37,12 @@ pub enum EvalError {
         #[source]
         source: Box<EvalError>,
     },
+
+    #[error("Configuration error: {0}")]
+    Config(String),
+
+    #[error("Provider '{0}' not found")]
+    ProviderNotFound(String),
 }
 
 pub type Result<T> = std::result::Result<T, EvalError>;
