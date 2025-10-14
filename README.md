@@ -1,13 +1,11 @@
   [![Rust](https://github.com/RGGH/evaluate/actions/workflows/rust.yml/badge.svg)](https://github.com/RGGH/evaluate/actions/workflows/rust.yml) 
 <div align="center">
-
   <img width="687" height="391" alt="Screenshot from 2025-10-13 21-00-43" src="https://github.com/user-attachments/assets/43b41099-8cbb-47e8-81c3-dbacf5b225a8" />
-
 </div>
 
 ---
 
-  # Evaluate - An LLM Eval Framework made in Rust
+# Evaluate - An LLM Eval Framework made in Rust
 
 A lightweight, flexible evaluation framework for testing models with automated judging capabilities. (Gemini initially)
 
@@ -16,10 +14,10 @@ A lightweight, flexible evaluation framework for testing models with automated j
 
 ## Todo
 
-- [ ] Read models from config
+- [ ] Read models from .env
 - [ ] Visualize output
 - [ ] Image Classifier Evals
-- [ ] Concurrent execution of run_eval (use tokio::join_all)
+- [x] Concurrent execution of run_eval (use tokio::join_all)
 
 ### Install
 
@@ -33,13 +31,16 @@ cd evaluate
 
 Add into .env (see example)
 
-
 ```bash
+DATABASE_URL=sqlite:data/evals.db
+
 api_base = "https://generativelanguage.googleapis.com"
 api_key = "AIzaSyAkQnssdafsdfasdfasxxxxxxxxxxxxxxxxxxx"
 ```
 
-```
+Run the code
+
+```bash
 cargo run
 ```
 
@@ -53,7 +54,7 @@ You should see output similar to:
 
 ## Features
 
-- 🚀 **Simple Configuration** - TOML-based config for API settings
+- 🚀 **Simple Configuration** - env file for API settings
 - 📝 **JSON Eval Definitions** - Easy-to-write test cases
 - 🤖 **AI-Powered Judging** - Use Gemini models to evaluate outputs semantically
 - ⚡ **Async Execution** - Fast parallel evaluation support
@@ -87,11 +88,20 @@ curl -X POST http://127.0.0.1:8080/api/v1/evals/run \
       "reasoning": "Verdict: PASS\n\nThe actual output correctly names Paris as the capital city, which is the core requirement of the evaluation criteria. Although it is a complete sentence rather than just the city name, it is semantically equivalent to the expected output. The necessary information is present and accurate.",
       "confidence": null
     },
-    "timestamp": "2025-10-13T08:48:38.987866175+00:00"
+    "timestamp": "2024-07-29T10:30:00.123456789+00:00"
   },
   "error": null
 }
 ```
+
+# Batch Evals API
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/evals/batch \
+-H "Content-Type: application/json" \
+-d '@qa_sample.json' | jq
+```
+
 ---
 
 # Built in GUI 

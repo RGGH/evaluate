@@ -6,6 +6,7 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/v1")
             .route("/health", web::get().to(handlers::health_check))
+            .route("/models", web::get().to(handlers::get_models))
             .service(
                 web::scope("/evals")
                     .route("/run", web::post().to(handlers::run_eval))
@@ -21,4 +22,3 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
             )
     );
 }
-

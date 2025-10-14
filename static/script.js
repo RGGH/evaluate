@@ -2,17 +2,15 @@ const API_BASE = 'http://127.0.0.1:8080/api/v1';
 
 let batchEvals = [];
 let allHistory = [];
-let historyCurrentPage = 1;
 const HISTORY_ITEMS_PER_PAGE = 10;
-let allResults = [];
+let historyCurrentPage = 1;
 
 // Tab Management
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initSingleEvalForm();
     initBatchEval();
-    initHistoryTab();
-    loadResults();
+    loadAndPopulateModels(); // This will now fetch models and populate dropdowns
 });
 
 function initTabs() {
@@ -82,7 +80,7 @@ function displayError(container, message, modelName = null) {
                 <ol style="margin: 8px 0; padding-left: 24px; color: #856404;">
                     <li>Check your <code>src/config.toml</code> file</li>
                     <li>Verify your API key is correct and active</li>
-                    <li>Ensure the model name is spelled correctly (e.g., "gemini-1.5-flash")</li>
+                    <li>Ensure the model name is spelled correctly (e.g., "gemini-2.5-flash")</li>
                     <li>Check your API quota and billing status at <a href="https://aistudio.google.com" target="_blank">Google AI Studio</a></li>
                 </ol>
             </div>
@@ -131,13 +129,6 @@ function initSingleEvalForm() {
                 displayError(resultContainer, data.error, payload.model);
             } else {
                 displaySingleResult(data);
-                
-                // Add to results list
-                allResults.unshift({
-                    ...data,
-                    timestamp: new Date().toISOString()
-                });
-                updateResultsList();
             }
 
         } catch (error) {
@@ -241,7 +232,7 @@ function addBatchEvalItem() {
         </h3>
         <div class="form-group">
             <label>Model Name</label>
-            <input type="text" class="batch-model" placeholder="gemini-1.5-flash" required>
+            <select class="batch-model" required></select>
         </div>
         <div class="form-group">
             <label>Prompt</label>
@@ -254,7 +245,7 @@ function addBatchEvalItem() {
         <div class="form-row">
             <div class="form-group">
                 <label>Judge Model (Optional)</label>
-                <input type="text" class="batch-judge" placeholder="gemini-1.5-pro">
+                <select class="batch-judge"></select>
             </div>
             <div class="form-group">
                 <label>Criteria (Optional)</label>
@@ -265,6 +256,10 @@ function addBatchEvalItem() {
     
     container.appendChild(item);
     batchEvals.push(item);
+
+    // Populate the new dropdowns with the already-loaded models
+    populateModelDropdown(item.querySelector('.batch-model'));
+    populateModelDropdown(item.querySelector('.batch-judge'), true);
 }
 
 function removeBatchEval(index) {
@@ -332,15 +327,6 @@ async function runBatchEval() {
         const data = await response.json();
         displayBatchResults(data, evals);
         
-        // Add to results list
-        data.results.forEach(result => {
-            allResults.unshift({
-                ...result,
-                timestamp: new Date().toISOString()
-            });
-        });
-        updateResultsList();
-        
     } catch (error) {
         displayError(resultContainer, `Failed to run batch evaluation: ${error.message}`);
     } finally {
@@ -402,68 +388,6 @@ function displayBatchResults(data, originalEvals) {
     html += '</div>';
     
     container.innerHTML = html;
-}
-
-// Results List
-function updateResultsList() {
-    const container = document.getElementById('results-list');
-    
-    if (allResults.length === 0) {
-        container.innerHTML = '<p class="empty-state">No results yet. Run an evaluation to see results here.</p>';
-        return;
-    }
-    
-    let html = '';
-    allResults.slice(0, 20).forEach((result, index) => {
-        // Handle both live API response structure and the structure from the database/history
-        const evalData = result.result?.Success ? result.result.Success : result.result;
-
-        html += `<div class="result-item" onclick="showResultDetail(${index})">`;
-        html += '<div class="result-item-header">';
-        html += `<h4>${evalData ? evalData.model : 'Evaluation'}</h4>`;
-        
-        if (evalData && evalData.judge_result) {
-            const verdict = evalData.judge_result.verdict.toLowerCase();
-            html += `<span class="verdict-badge verdict-${verdict === 'pass' ? 'pass' : verdict === 'fail' ? 'fail' : 'uncertain'}">
-                ${verdict.toUpperCase()}
-            </span>`;
-        } else if (result.error) {
-            html += `<span class="verdict-badge verdict-fail">ERROR</span>`;
-        }
-        html += '</div>';
-        
-        if (evalData) {
-            html += `<div class="result-item-content">`;
-            html += `<strong>Prompt:</strong> ${escapeHtml(evalData.prompt.substring(0, 100))}${evalData.prompt.length > 100 ? '...' : ''}`;
-            html += `</div>`;
-        } else if (result.error) {
-            html += `<div class="result-item-content" style="color: #dc3545;">`;
-            html += `<strong>Error:</strong> ${escapeHtml(result.error.substring(0, 100))}`;
-            if (isApiKeyError(result.error)) {
-                html += ` <small>(Check API key)</small>`;
-            }
-            html += `</div>`;
-        }
-        
-        html += `<div class="timestamp">${formatTimestamp(result.timestamp)}</div>`;
-        html += '</div>';
-    });
-    
-    container.innerHTML = html;
-}
-
-function showResultDetail(index) {
-    const result = allResults[index];
-    // The data from 'allResults' might have the nested 'Success' property.
-    // We create a consistent object for displaySingleResult.
-    const displayData = result.result?.Success ? { ...result, result: result.result.Success } : result;
-
-    document.querySelector('.tab-btn[data-tab="single"]').click(); // Switch to single eval tab
-    displaySingleResult(displayData);
-}
-
-function initHistoryTab() {
-    // The logic is triggered by the tab click handler in initTabs
 }
 
 async function loadHistory() {
@@ -591,18 +515,41 @@ function transformHistoryEntryToEvalResponse(historyEntry) {
     };
 }
 
-function loadResults() {
-    const stored = localStorage.getItem('evalResults');
-    if (stored) {
-        allResults = JSON.parse(stored);
-        updateResultsList();
+async function loadAndPopulateModels() {
+    try {
+        const response = await fetch(`${API_BASE}/models`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch models');
+        }
+        const data = await response.json();
+        const models = data.models || [];
+
+        // Store models globally so other functions can access them
+        window.availableModels = models;
+
+        // Populate all model dropdowns on the page, including batch items
+        document.querySelectorAll('#model, .batch-model').forEach(select => {
+            populateModelDropdown(select);
+        });
+        document.querySelectorAll('#judge-model, .batch-judge').forEach(select => {
+            populateModelDropdown(select, true);
+        });
+
+    } catch (error) {
+        console.error('Error loading models:', error);
+        // You could display an error to the user here
     }
 }
 
-// Save results when page unloads
-window.addEventListener('beforeunload', () => {
-    localStorage.setItem('evalResults', JSON.stringify(allResults.slice(0, 50)));
-});
+function populateModelDropdown(selectElement, isOptional = false) {
+    if (!selectElement || !window.availableModels) return;
+
+    selectElement.innerHTML = isOptional ? '<option value="">-- Select Model --</option>' : '';
+
+    window.availableModels.forEach(model => {
+        selectElement.innerHTML += `<option value="${model}">${model}</option>`;
+    });
+}
 
 // Utility Functions
 function escapeHtml(text) {
