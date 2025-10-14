@@ -4,6 +4,7 @@
   <img width="687" height="391" alt="Screenshot from 2025-10-13 21-00-43" src="https://github.com/user-attachments/assets/43b41099-8cbb-47e8-81c3-dbacf5b225a8" />
 
 </div>
+
 ---
 
   # Evaluate - An LLM Eval Framework made in Rust
