@@ -31,7 +31,7 @@ git clone git@github.com:RGGH/evaluate.git
 cd evaluate
 ```
 
-Add config.toml into src/
+Add into .env (see example)
 
 
 ```bash
