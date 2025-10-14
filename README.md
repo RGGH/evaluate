@@ -28,13 +28,20 @@ git clone git@github.com:RGGH/evaluate.git
 cd evaluate
 ```
 
-Add into .env (see example)
+Add into .env
+
+(see env.example)
 
 ```bash
 DATABASE_URL=sqlite:data/evals.db
 
 api_base = "https://generativelanguage.googleapis.com"
-api_key = "AIzaSyAkQnssdafsdfasdfasxxxxxxxxxxxxxxxxxxx"
+api_key = "AIzaSyAkQnxxxxxxxxxxxxxxxx"
+
+
+GEMINI_MODELS=gemini-2.5-pro,gemini-2.5-flash,gemini-1.5-pro-latest,gemini-1.5-flash-latest
+
+OLLAMA_API_BASE="http://localhost:11434"
 ```
 
 Run the code
