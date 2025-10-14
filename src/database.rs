@@ -9,14 +9,14 @@ pub async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     // Create parent directory BEFORE attempting to connect
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)
-            .map_err(|e| sqlx::Error::Io(e))?;
+            .map_err(sqlx::Error::Io)?;
         println!("✅ Created database directory: {}", parent.display());
     }
     
     // Ensure the path is absolute and properly formatted
     let absolute_path = if db_path.is_relative() {
         std::env::current_dir()
-            .map_err(|e| sqlx::Error::Io(e))?
+            .map_err(sqlx::Error::Io)?
             .join(&db_path)
     } else {
         db_path.clone()

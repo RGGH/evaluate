@@ -1,18 +1,14 @@
 // src/config.rs
-use std::fs;
 use serde::Deserialize;
 use crate::errors::Result;
 
-/// High-level application configuration.
-#[derive(Debug, Deserialize, Clone)]
+/// High-level application configuration loaded from environment variables.
+#[derive(Debug, Clone)]
 pub struct AppConfig {
     /// Base API URL for Gemini
     pub api_base: String,
     /// API key for Gemini
     pub api_key: String,
-    /// List of JSON eval files
-    #[serde(default)]
-    pub evals: Vec<String>,
 }
 
 /// Contains all the information needed to run one prompt against a model
@@ -47,24 +43,34 @@ pub struct EvalConfig {
 }
 
 impl AppConfig {
-    pub fn from_file(path: &str) -> Result<Self> {
-        let data = fs::read_to_string(path)?;
-        let cfg: AppConfig = toml::from_str(&data)?;
-        Ok(cfg)
+    /// Load configuration from environment variables
+    pub fn from_env() -> Result<Self> {
+        let api_base = std::env::var("GEMINI_API_BASE")
+            .unwrap_or_else(|_| "https://generativelanguage.googleapis.com".to_string());
+        
+        let api_key = std::env::var("GEMINI_API_KEY")
+            .map_err(|_| crate::errors::EvalError::ApiResponse(
+                "GEMINI_API_KEY environment variable must be set".to_string()
+            ))?;
+        
+        Ok(AppConfig {
+            api_base,
+            api_key,
+        })
     }
 }
 
 impl EvalConfig {
     /// Load a single EvalConfig from a JSON file
     pub fn from_file(path: &str) -> Result<Self> {
-        let data = fs::read_to_string(path)?;
+        let data = std::fs::read_to_string(path)?;
         let cfg: EvalConfig = serde_json::from_str(&data)?;
         Ok(cfg)
     }
     
     /// Load multiple EvalConfigs from a JSON array file
     pub fn batch_from_file(path: &str) -> Result<Vec<Self>> {
-        let data = fs::read_to_string(path)?;
+        let data = std::fs::read_to_string(path)?;
         let configs: Vec<EvalConfig> = serde_json::from_str(&data)?;
         Ok(configs)
     }

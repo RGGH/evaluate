@@ -21,3 +21,5 @@ actix-cors = "0.7.1"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-native-tls", "sqlite"] }
 dirs = "5.0"
 dotenv = "0.15.0"
+rust-embed = "8.7.2"
+mime_guess = "2.0.5"

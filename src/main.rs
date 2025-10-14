@@ -4,14 +4,23 @@ mod errors;
 mod runner;
 mod models;
 mod database;
-
-use actix_web::{middleware, App, HttpServer};
-use actix_files as fs;
+mod banner;
+ 
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, middleware, Responder};
 use actix_cors::Cors;
 use api::{configure_routes, AppState};
+use rust_embed::RustEmbed;
+use std::borrow::Cow;
+
+#[derive(RustEmbed)]
+#[folder = "static/"]
+struct StaticAssets;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Print the startup banner
+    banner::print_banner();
+
     // Load .env file - fail loudly if it doesn't exist
     if let Err(e) = dotenv::dotenv() {
         eprintln!("⚠️  Warning: Could not load .env file: {}", e);
@@ -26,15 +35,14 @@ async fn main() -> std::io::Result<()> {
     
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     
-    let app_config = config::AppConfig::from_file("src/config.toml")
-        .expect("Failed to load config");
+    let app_config = config::AppConfig::from_env()
+        .expect("Failed to load app configuration from environment");
     
     let state = AppState::new(app_config).await;
     
-    println!("🚀 Starting server at http://127.0.0.1:8080");
+    println!("🚀 Starting server...");
     println!("📊 Frontend available at http://127.0.0.1:8080");
-    println!("🔌 API available at http://127.0.0.1:8080/api/v1");
-    
+
     HttpServer::new(move || {
         let cors = Cors::permissive();
         
@@ -43,10 +51,26 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .wrap(middleware::Logger::default())
             .configure(configure_routes)
-            .service(fs::Files::new("/static", "./static").show_files_listing())
-            .service(fs::Files::new("/", "./static").index_file("index.html"))
+            .route("/{_:.*}", web::get().to(static_file_handler))
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("0.0.0.0", 8080))?
     .run()
     .await
+}
+
+async fn static_file_handler(req: HttpRequest) -> impl Responder {
+    let path = if req.path() == "/" {
+        "index.html"
+    } else {
+        // trim leading '/'
+        &req.path()[1..]
+    };
+
+    match StaticAssets::get(path) {
+        Some(content) => {
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+            HttpResponse::Ok().content_type(mime.as_ref()).body(Cow::into_owned(content.data))
+        }
+        None => HttpResponse::NotFound().body("404 Not Found"),
+    }
 }
