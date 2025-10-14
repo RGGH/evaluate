@@ -14,7 +14,7 @@ A lightweight, flexible evaluation framework for testing models with automated j
 
 ## Todo
 
-- [ ] Read models from .env
+- [x] Read models from .env
 - [ ] Visualize output
 - [ ] Image Classifier Evals
 - [x] Concurrent execution of run_eval (use tokio::join_all)
