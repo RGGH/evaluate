@@ -107,10 +107,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/evals/batch \
 # Built in GUI 
 
 ### Single Eval
-
-<img width="1402" height="979" alt="image" src="https://github.com/user-attachments/assets/c705cd51-e9b8-4308-b985-f837445f2ea4" />
+<img width="994" height="940" alt="Screenshot from 2025-10-14 19-27-23" src="https://github.com/user-attachments/assets/c773fb8e-f74e-4bc9-a169-cf418fd25057" />
 
 
 ### History
+<img width="994" height="940" alt="Screenshot from 2025-10-14 19-27-14" src="https://github.com/user-attachments/assets/982935f7-98b8-47ac-ab09-7cf95356f3ec" />
 
-<img width="1402" height="979" alt="image" src="https://github.com/user-attachments/assets/03cdd052-8fd3-444b-8dec-dc5ce7ebfc9d" />
+
