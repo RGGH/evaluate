@@ -12,7 +12,7 @@ const config: Config = {
   },
   
   url: 'https://RGGH.github.io',
-  baseUrl: '/',
+  baseUrl: '/evaluate/',
   
   organizationName: 'RGGH',
   projectName: 'evaluate',
