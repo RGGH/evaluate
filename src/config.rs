@@ -70,19 +70,7 @@ impl AppConfig {
 }
 
 impl EvalConfig {
-    /// Load a single EvalConfig from a JSON file
-    pub fn from_file(path: &str) -> Result<Self> {
-        let data = std::fs::read_to_string(path)?;
-        let cfg: EvalConfig = serde_json::from_str(&data)?;
-        Ok(cfg)
-    }
-    
-    /// Load multiple EvalConfigs from a JSON array file
-    pub fn batch_from_file(path: &str) -> Result<Vec<Self>> {
-        let data = std::fs::read_to_string(path)?;
-        let configs: Vec<EvalConfig> = serde_json::from_str(&data)?;
-        Ok(configs)
-    }
+
 
     /// Creates a new `EvalConfig` by substituting placeholders from its metadata.
     /// Placeholders are in the format `{{key}}`.
@@ -121,10 +109,10 @@ mod tests {
     fn test_eval_config_render() {
         // 1. Create an EvalConfig with placeholders
         let eval_config = EvalConfig {
-            model: "gemini-1.5-flash".to_string(),
+            model: "gemini-2.5-flash".to_string(),
             prompt: "What is the capital of {{country}}?".to_string(),
             expected: Some("The capital is {{capital}}.".to_string()),
-            judge_model: Some("gemini-1.5-pro".to_string()),
+            judge_model: Some("gemini-2.5-pro".to_string()),
             criteria: None,
             tags: vec!["geography".to_string()],
             // 2. Add metadata with the values to substitute
