@@ -11,13 +11,12 @@ A lightweight, flexible evaluation framework for testing models with automated j
 
 - Sqlite database for saving history
 - Specify LLM provider for LLM and Judge
+- batch evals to multiple providers/models
+- API endpoints
 
 ## Todo
-
-- [x] Read models from .env
 - [ ] Visualize output
 - [ ] Image Classifier Evals
-- [x] Concurrent execution of run_eval (use tokio::join_all)
 
 ### Install
 
