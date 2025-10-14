@@ -21,14 +21,16 @@ Or **try Evaluate immediately** by cloning from **[GitHub](https://github.com/RG
 
 - [Rust](https://www.rust-lang.org/tools/install) version 1.70 or above
 - [Node.js](https://nodejs.org/en/download/) version 20.0 or above (for the documentation site)
-- A Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+- An LLM Provider:
+  - A Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+  - Or a running [Ollama](https://ollama.com/) instance for local models.
 - Git for version control
 
 ## Clone and Setup
 
 Clone the Evaluate repository and set up your environment:
 
-```bash
+```sh
 # 1. Clone the repository
 git clone git@github.com:RGGH/evaluate.git
 

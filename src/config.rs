@@ -1,20 +1,35 @@
 // src/config.rs
 use serde::Deserialize;
 use regex::Regex;
-use crate::errors::Result;
+use crate::errors::{Result, EvalError};
+
+/// Configuration for the Gemini provider.
+#[derive(Debug, Clone)]
+pub struct GeminiConfig {
+    pub api_base: String,
+    pub api_key: String,
+    pub models: Vec<String>,
+}
+
+/// Configuration for the Ollama provider.
+#[derive(Debug, Clone)]
+pub struct OllamaConfig {
+    pub api_base: String,
+    pub models: Vec<String>,
+}
 
 /// High-level application configuration loaded from environment variables.
 #[derive(Debug, Clone)]
 pub struct AppConfig {
-    /// Base API URL for Gemini
-    pub api_base: String,
-    /// API key for Gemini
-    pub api_key: String,
-    /// Available models
+    pub gemini: Option<GeminiConfig>,
+    pub ollama: Option<OllamaConfig>,
     pub models: Vec<String>,
 }
 
 /// Contains all the information needed to run one prompt against a model
+/// The model string is expected to be in the format `provider:model_name`,
+/// e.g., `gemini:gemini-1.5-flash` or `ollama:llama3`.
+/// If no provider is specified, it will default to `gemini`.
 #[derive(Deserialize, Debug, Clone)]
 pub struct EvalConfig {
     /// The model to evaluate
@@ -48,30 +63,41 @@ pub struct EvalConfig {
 impl AppConfig {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {
-        let api_base = std::env::var("GEMINI_API_BASE")
-            .unwrap_or_else(|_| "https://generativelanguage.googleapis.com".to_string());
+        let mut gemini_config = None;
+        let mut all_models = Vec::new();
         
-        let api_key = std::env::var("GEMINI_API_KEY")
-            .map_err(|_| crate::errors::EvalError::ApiResponse(
-                "GEMINI_API_KEY environment variable must be set".to_string()
-            ))?;
+        if let Ok(api_key) = std::env::var("GEMINI_API_KEY") {
+            let api_base = std::env::var("GEMINI_API_BASE")
+                .unwrap_or_else(|_| "https://generativelanguage.googleapis.com".to_string());
+            let models_str = std::env::var("GEMINI_MODELS").unwrap_or_else(|_| {
+                "gemini-1.5-pro-latest,gemini-1.5-flash-latest".to_string()
+            });
+            let models: Vec<String> = models_str.split(',').map(|s| s.trim().to_string()).collect();
+            all_models.extend(models.iter().map(|m| format!("gemini:{}", m)));
+            gemini_config = Some(GeminiConfig { api_base, api_key, models });
+        }
 
-        let models_str = std::env::var("GEMINI_MODELS").unwrap_or_else(|_| {
-            "gemini-2.5-pro,gemini-2.5-flash".to_string()
-        });
-        let models = models_str.split(',').map(|s| s.trim().to_string()).collect();
-        
-        Ok(AppConfig {
-            api_base,
-            api_key,
-            models,
-        })
+        let mut ollama_config = None;
+        if let Ok(api_base) = std::env::var("OLLAMA_API_BASE") {
+             let models_str = std::env::var("OLLAMA_MODELS").unwrap_or_else(|_| {
+                "llama3,gemma".to_string()
+            });
+            let models: Vec<String> = models_str.split(',').map(|s| s.trim().to_string()).collect();
+            all_models.extend(models.iter().map(|m| format!("ollama:{}", m)));
+            ollama_config = Some(OllamaConfig { api_base, models });
+        }
+
+        if gemini_config.is_none() && ollama_config.is_none() {
+            return Err(EvalError::Config(
+                "No LLM providers configured. Please set either GEMINI_API_KEY or OLLAMA_API_BASE.".to_string()
+            ));
+        }
+
+        Ok(AppConfig { gemini: gemini_config, ollama: ollama_config, models: all_models })
     }
 }
 
 impl EvalConfig {
-
-
     /// Creates a new `EvalConfig` by substituting placeholders from its metadata.
     /// Placeholders are in the format `{{key}}`.
     pub fn render(&self) -> Result<Self> {

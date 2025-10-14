@@ -1,31 +1,10 @@
 // src/runner.rs
 use crate::config::{AppConfig, EvalConfig};
 use crate::errors::{EvalError, Result};
+use crate::providers::{gemini::GeminiProvider, ollama::OllamaProvider, LlmProvider};
 use futures::future;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
 use std::time::Instant;
-
-#[derive(Deserialize)]
-struct GeminiResponse {
-    candidates: Vec<Candidate>,
-}
-
-#[derive(Deserialize)]
-struct Candidate {
-    content: Content,
-}
-
-#[derive(Deserialize)]
-struct Content {
-    parts: Vec<Part>,
-}
-
-#[derive(Deserialize)]
-struct Part {
-    text: String,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EvalResult {
@@ -63,71 +42,6 @@ impl std::fmt::Display for JudgeVerdict {
             JudgeVerdict::Uncertain => write!(f, "Uncertain"),
         }
     }
-}
-
-/// Calls the Gemini API with a given prompt and returns the model's response text and latency.
-async fn call_gemini_api(
-    client: &Client,
-    api_base: &str,
-    api_key: &str,
-    model: &str,
-    prompt: &str,
-) -> Result<(String, u64)> {
-    let url = format!(
-        "{}/v1beta/models/{}:generateContent",
-        api_base.trim_end_matches('/'),
-        model
-    );
-
-    println!("📡 Calling: {} with model: {}", url, model);
-
-    let body = json!({
-        "contents": [{"parts": [{"text": prompt}]}]
-    });
-
-    let start = Instant::now();
-    
-    let resp = client
-        .post(&url)
-        .header("x-goog-api-key", api_key)
-        .json(&body)
-        .send()
-        .await?;
-
-    let status = resp.status();
-    let latency_ms = start.elapsed().as_millis() as u64;
-    
-    println!("📥 Response status: {} ({}ms)", status, latency_ms);
-
-    if !status.is_success() {
-        let error_body = resp.text().await.unwrap_or_else(|_| "Could not read error body".to_string());
-        return Err(EvalError::ApiError {
-            status: status.as_u16(),
-            body: error_body,
-        });
-    }
-
-    let response_json: Value = resp.json().await?;
-
-    if let Some(error) = response_json.get("error") {
-        return Err(EvalError::ApiResponse(error.to_string()));
-    }
-
-    let output = response_json
-        .get("candidates")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("content"))
-        .and_then(|c| c.get("parts"))
-        .and_then(|p| p.get(0))
-        .and_then(|p| p.get("text"))
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| EvalError::UnexpectedResponse(response_json.to_string()))?;
-
-    if output.is_empty() {
-        return Err(EvalError::EmptyResponse);
-    }
-
-    Ok((output.to_string(), latency_ms))
 }
 
 /// Parse judge response to extract verdict and reasoning
@@ -191,11 +105,20 @@ Your evaluation:"#,
     )
 }
 
+/// Parses a model string like "provider:model_name" and returns the provider and model.
+/// Defaults to "gemini" if no provider is specified.
+fn parse_model_string(model_str: &str) -> (String, String) {
+    match model_str.split_once(':') {
+        Some((provider, model)) => (provider.to_string(), model.to_string()),
+        None => ("gemini".to_string(), model_str.to_string()),
+    }
+}
+
 /// Run a single eval with comprehensive LLM-as-a-judge evaluation
 pub async fn run_eval(
-    app: &AppConfig, 
-    eval: &EvalConfig, 
-    client: &Client
+    config: &AppConfig,
+    eval: &EvalConfig,
+    client: &reqwest::Client,
 ) -> Result<EvalResult> {
     // Step 0: Render the eval config to substitute variables from metadata
     let rendered_eval = eval.render()?;
@@ -207,24 +130,32 @@ pub async fn run_eval(
     println!("{}\n", separator);
 
     // Step 1: Call the target model
+    let (provider_name, model_name) = parse_model_string(&rendered_eval.model);
+    
     println!("📝 Prompt: {}", rendered_eval.prompt);
     
-    let (model_output, latency_ms) = call_gemini_api(
-        client,
-        &app.api_base,
-        &app.api_key,
-        &rendered_eval.model,
-        &rendered_eval.prompt,
-    )
-    .await
-    .map_err(|e| {
+    let (model_output_str, latency_ms) = match provider_name.as_str() {
+        "gemini" => {
+            let gemini_config = config.gemini.as_ref()
+                .ok_or_else(|| EvalError::ProviderNotFound("gemini".to_string()))?;
+            let provider = GeminiProvider::new(client.clone(), gemini_config.clone());
+            provider.generate(&model_name, &rendered_eval.prompt).await
+        }
+        "ollama" => {
+            let ollama_config = config.ollama.as_ref()
+                .ok_or_else(|| EvalError::ProviderNotFound("ollama".to_string()))?;
+            let provider = OllamaProvider::new(client.clone(), ollama_config.clone());
+            provider.generate(&model_name, &rendered_eval.prompt).await
+        }
+        _ => return Err(EvalError::ProviderNotFound(provider_name)),
+    }.map_err(|e| {
         eprintln!("❌ Model failed: {}", e);
         EvalError::ModelFailure {
             model: rendered_eval.model.clone(),
         }
     })?;
 
-    println!("\n✅ Model Output ({}ms):\n{}\n", latency_ms, model_output);
+    println!("\n✅ Model Output ({}ms):\n{}\n", latency_ms, &model_output_str);
 
     // Step 2: Run judge evaluation if expected output provided
     let mut judge_latency_ms = None;
@@ -235,22 +166,32 @@ pub async fn run_eval(
         
         let judge_prompt = create_judge_prompt(
             expected,
-            &model_output,
+            &model_output_str,
             rendered_eval.criteria.as_deref()
         );
 
-        match call_gemini_api(
-            client,
-            &app.api_base,
-            &app.api_key,
-            judge_model,
-            &judge_prompt,
-        )
-        .await
-        {
+        let (judge_provider_name, judge_model_name) = parse_model_string(judge_model);
+        
+        let judge_result = match judge_provider_name.as_str() {
+            "gemini" => {
+                let gemini_config = config.gemini.as_ref()
+                    .ok_or_else(|| EvalError::ProviderNotFound("gemini".to_string()))?;
+                let provider = GeminiProvider::new(client.clone(), gemini_config.clone());
+                provider.generate(&judge_model_name, &judge_prompt).await
+            }
+            "ollama" => {
+                let ollama_config = config.ollama.as_ref()
+                    .ok_or_else(|| EvalError::ProviderNotFound("ollama".to_string()))?;
+                let provider = OllamaProvider::new(client.clone(), ollama_config.clone());
+                provider.generate(&judge_model_name, &judge_prompt).await
+            }
+            _ => return Err(EvalError::ProviderNotFound(judge_provider_name)),
+        };
+
+        match judge_result {
             Ok((judge_response, judge_latency)) => {
                 judge_latency_ms = Some(judge_latency);
-                println!("\n⚖️  Judge Response ({}ms):\n{}\n", judge_latency, judge_response);
+                println!("\n⚖️  Judge Response ({}ms):\n{}\n", judge_latency, &judge_response);
                 
                 let mut result = parse_judge_response(&judge_response);
                 result.judge_model = judge_model.clone();
@@ -284,7 +225,7 @@ pub async fn run_eval(
     Ok(EvalResult {
         model: rendered_eval.model.clone(),
         prompt: rendered_eval.prompt.clone(),
-        model_output,
+        model_output: model_output_str.to_string(),
         expected: rendered_eval.expected.clone(),
         judge_result,
         timestamp: chrono::Utc::now().to_rfc3339(),
@@ -296,17 +237,17 @@ pub async fn run_eval(
 
 /// Run multiple evals and aggregate results concurrently
 pub async fn run_batch_evals(
-    app: &AppConfig,
+    config: &AppConfig,
     evals: Vec<EvalConfig>,
-    client: &Client,
+    client: &reqwest::Client,
 ) -> Vec<Result<EvalResult>> {
     let batch_start = Instant::now();
     let total_evals = evals.len();
 
-    // list of futures and run them concurrently within the same task **
+    // list of futures and run them concurrently within the same task
     let futures: Vec<_> = evals
         .iter()
-        .map(|eval| run_eval(app, eval, client))
+        .map(|eval| run_eval(config, eval, client))
         .collect();
 
     let results = future::join_all(futures).await;

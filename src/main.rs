@@ -1,6 +1,9 @@
-mod api;
+// src/main.rs
+
 mod config;
+mod api;
 mod errors;
+mod providers;
 mod runner;
 mod models;
 mod database;
