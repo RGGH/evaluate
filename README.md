@@ -5,7 +5,7 @@
 
 ---
 
-![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white) # Evaluate - An LLM Eval Framework made in Rust
+# Evaluate - An LLM Eval Framework
 
 A lightweight, flexible evaluation framework for testing models with automated judging capabilities. (Gemini initially)
 
