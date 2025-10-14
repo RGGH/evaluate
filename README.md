@@ -60,7 +60,7 @@ You should see output similar to:
 - ⚡ **Async Execution** - Fast parallel evaluation support
 - 🎯 **Flexible** - Test any Gemini model with any prompt
 
-# Sample output - API 
+# Sample output - API - Gemini
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/evals/run \
 -H "Content-Type: application/json" \
@@ -94,13 +94,62 @@ curl -X POST http://127.0.0.1:8080/api/v1/evals/run \
 }
 ```
 
-# Batch Evals API
+# Sample output Ollama
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/evals/run \
+-H "Content-Type: application/json" \
+-d '{
+  "model": "ollama:llama3",
+  "prompt": "What is the capital of France?",
+  "expected": "Paris",
+  "judge_model": "ollama:llama3",
+  "criteria": "Does the output correctly name the capital city?"
+}' | jq
+
+{
+  "id": "3c7e8a90-9170-414e-9b33-981deac4007b",
+  "status": "passed",
+  "result": {
+    "model": "ollama:llama3",
+    "prompt": "What is the capital of France?",
+    "model_output": "The capital of France is Paris.",
+    "expected": "Paris",
+    "judge_result": {
+      "judge_model": "ollama:llama3",
+      "verdict": "Pass",
+      "reasoning": "Verdict: PASS\n\nThe actual output correctly names Paris as the capital city of France, which aligns with the expected output. Although the wording is slightly different, the semantic meaning and intent behind both outputs are identical, making it a pass according to the evaluation criteria.",
+      "confidence": null
+    },
+    "timestamp": "2025-10-14T18:35:46.295118492+00:00",
+    "latency_ms": 3726,
+    "judge_latency_ms": 10691,
+    "total_latency_ms": 14417
+  },
+  "error": null
+}
+
+
+```
+
+# Batch Evals API 
+
+You can set the provider in the json file and use a generic syntax for batch evals
+
+```json
+    "model": "gemini:gemini-1.5-flash-latest",
+    "prompt": "What is the capital of France?",
+    "expected": "Paris",
+    "judge_model": "gemini:gemini-1.5-pro-latest"
+ ```   
+
+Call the endpoint
 
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/evals/batch \
 -H "Content-Type: application/json" \
 -d '@qa_sample.json' | jq
 ```
+
 
 ---
 
