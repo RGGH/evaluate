@@ -1,5 +1,0 @@
-/target
-config.toml
-**/*.toml
-!Cargo.tomldata/
-data/
