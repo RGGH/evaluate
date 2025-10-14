@@ -1,31 +1,10 @@
-# name: Rust
-
-# on:
-#   push:
-#     branches: [ "main" ]
-#   pull_request:
-#     branches: [ "main" ]
-
-# env:
-#   CARGO_TERM_COLOR: always
-
-# jobs:
-#   build:
-
-#     runs-on: ubuntu-latest
-
-#     steps:
-#     - uses: actions/checkout@v4
-#     - name: Build
-#       run: cargo build --verbose
-#     - name: Run tests
-#       run: cargo test --verbose
-
 permissions:
   contents: write
   actions: write
   id-token: write  # Required for keyless signing with OIDC
+
 name: Build and Release Rust Binary
+
 on:
   push:
     branches: [main]
@@ -33,6 +12,7 @@ on:
       - 'v*'
   pull_request:
     branches: [main]
+
 jobs:
   build:
     name: Build on ${{ matrix.os }}
@@ -77,6 +57,7 @@ jobs:
         with:
           name: ${{ matrix.archive_name }}
           path: target/release/${{ matrix.archive_name }}
+
   release:
     name: Create and Upload Release
     needs: [build]
@@ -101,30 +82,25 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Display downloaded files
-        run: ls -R artifacts
       - name: Prepare release files
         run: |
           mkdir -p release_files
           find artifacts -type f -exec cp {} release_files/ \;
           ls -la release_files/
-      # Install Cosign using the GitHub Action
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
-      # Sign artifacts with Keyless signing
-      - name: Sign artifacts
+      - name: Sign artifacts (Keyless)
         run: |
           for file in release_files/*; do
             echo "Signing file: $file"
             cosign sign-blob --yes "$file" \
               --output-signature "${file}.sig" \
-              --output-certificate "${file}.pem"
+              --output-certificate "${file}.pem" \
+              --bundle "${file}.sig.bundle"
             # Verify the files exist
-            ls -la "${file}.sig" "${file}.pem" || true
+            ls -la "${file}.sig" "${file}.pem" "${file}.sig.bundle" || true
           done
-          # Move signature files from working directory to release_files if needed
-          find . -maxdepth 1 -name "*.sig" -o -name "*.pem" | xargs -I{} cp {} release_files/ || true
-          echo "Files in release_files directory:"
+          echo "Files in release_files directory after signing:"
           ls -la release_files/
       - name: Create Release
         uses: softprops/action-gh-release@v1
