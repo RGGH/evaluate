@@ -1,0 +1,47 @@
+[
+  {
+    "model": "gemini-2.5-flash",
+    "prompt": "What is the capital of {{country}}?",
+    "expected": "{{capital}}",
+    "judge_model": "gemini-2.5-pro",
+    "criteria": "The model must name the correct capital city of the country.",
+    "tags": ["geography", "capital-cities"],
+    "metadata": { "country": "France", "capital": "Paris" }
+  },
+  {
+    "model": "gemini-2.5-flash",
+    "prompt": "What is the capital of {{country}}?",
+    "expected": "{{capital}}",
+    "judge_model": "gemini-2.5-pro",
+    "criteria": "The model must name the correct capital city of the country.",
+    "tags": ["geography", "capital-cities"],
+    "metadata": { "country": "Germany", "capital": "Berlin" }
+  },
+  {
+    "model": "gemini-2.5-flash",
+    "prompt": "What is the capital of {{country}}?",
+    "expected": "{{capital}}",
+    "judge_model": "gemini-2.5-pro",
+    "criteria": "The model must name the correct capital city of the country.",
+    "tags": ["geography", "capital-cities"],
+    "metadata": { "country": "Japan", "capital": "Tokyo" }
+  },
+  {
+    "model": "gemini-2.5-flash",
+    "prompt": "A cyclist travels at a constant speed of {{speed}} km/h. How long will it take them to travel {{distance}} km? Provide the answer in hours and minutes.",
+    "expected": "It will take {{hours}} hours and {{minutes}} minutes.",
+    "judge_model": "gemini-2.5-pro",
+    "criteria": "The model must correctly calculate the travel time from the speed and distance, and state the final answer clearly in both hours and minutes.",
+    "tags": ["reasoning", "math", "word-problem"],
+    "metadata": { "speed": 20, "distance": 50, "hours": 2, "minutes": 30 }
+  },
+  {
+    "model": "gemini-2.5-flash",
+    "prompt": "In one sentence, what is the main philosophical question explored in the book '{{book_title}}' by {{author}}?",
+    "expected": "The book explores the nature of empathy and what it truly means to be human in a world with sophisticated androids.",
+    "judge_model": "gemini-2.5-pro",
+    "criteria": "The model must identify the core philosophical theme of the book, focusing on empathy and the definition of humanity, rather than just summarizing the plot.",
+    "tags": ["summarization", "literature", "philosophy"],
+    "metadata": { "book_title": "Do Androids Dream of Electric Sheep?", "author": "Philip K. Dick" }
+  }
+]

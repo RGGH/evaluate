@@ -16,11 +16,6 @@ pub struct RunEvalRequest {
     pub criteria: Option<String>,
 }
 
-#[derive(Clone, Deserialize)]
-pub struct BatchEvalRequest {
-    pub evals: Vec<RunEvalRequest>,
-}
-
 #[derive(Serialize)]
 pub struct EvalResponse {
     pub id: String,
@@ -37,21 +32,9 @@ pub struct BatchEvalResponse {
     pub completed: usize,
     pub passed: usize,
     pub failed: usize,
+    pub average_model_latency_ms: u64,
+    pub average_judge_latency_ms: u64,
     pub results: Vec<EvalResponse>,
-}
-
-impl From<RunEvalRequest> for EvalConfig {
-    fn from(req: RunEvalRequest) -> Self {
-        EvalConfig {
-            model: req.model,
-            prompt: req.prompt,
-            expected: req.expected,
-            judge_model: req.judge_model,
-            criteria: req.criteria,
-            tags: Vec::new(),
-            metadata: None,
-        }
-    }
 }
 
 pub async fn run_eval(
@@ -59,7 +42,16 @@ pub async fn run_eval(
     req: web::Json<RunEvalRequest>,
 ) -> Result<HttpResponse> {
     let eval_id = Uuid::new_v4().to_string();
-    let eval_config: EvalConfig = req.into_inner().into();
+    let req_body = req.into_inner();
+    let eval_config = EvalConfig {
+        model: req_body.model,
+        prompt: req_body.prompt,
+        expected: req_body.expected,
+        judge_model: req_body.judge_model,
+        criteria: req_body.criteria,
+        tags: Vec::new(), // Single run endpoint doesn't support tags
+        metadata: None,   // Single run endpoint doesn't support metadata
+    };
 
     match runner::run_eval(&state.config, &eval_config, &state.client).await {
         Ok(result) => {
@@ -108,17 +100,14 @@ pub async fn run_eval(
 
 pub async fn run_batch(
     state: web::Data<AppState>,
-    req: web::Json<BatchEvalRequest>,
+    eval_configs: web::Json<Vec<EvalConfig>>,
 ) -> Result<HttpResponse> {
     let batch_id = Uuid::new_v4().to_string();
-    let total = req.evals.len();
-    let req_body = req.into_inner();
-
-    let eval_configs: Vec<EvalConfig> = req_body.evals.into_iter().map(Into::into).collect();
+    let total = eval_configs.len();
 
     let results = runner::run_batch_evals(
         &state.config,
-        eval_configs,
+        eval_configs.into_inner(),
         &state.client,
     ).await;
 
@@ -126,6 +115,10 @@ pub async fn run_batch(
     let mut completed = 0;
     let mut passed = 0;
     let mut failed = 0;
+    let mut total_model_latency = 0;
+    let mut model_latency_count = 0;
+    let mut total_judge_latency = 0;
+    let mut judge_latency_count = 0;
 
     for result in results {
         let eval_id = Uuid::new_v4().to_string();
@@ -133,6 +126,12 @@ pub async fn run_batch(
         match result {
             Ok(eval_result) => {
                 completed += 1;
+                total_model_latency += eval_result.latency_ms;
+                model_latency_count += 1;
+                if let Some(judge_latency) = eval_result.judge_latency_ms {
+                    total_judge_latency += judge_latency;
+                    judge_latency_count += 1;
+                }
                 
                 let status = if let Some(judge) = &eval_result.judge_result {
                     match judge.verdict {
@@ -150,11 +149,26 @@ pub async fn run_batch(
                     "completed"
                 };
 
-                responses.push(EvalResponse {
-                    id: eval_id,
+                let response = EvalResponse {
+                    id: eval_id.clone(),
                     status: status.to_string(),
-                    result: Some(eval_result),
+                    result: Some(eval_result.clone()),
                     error: None,
+                };
+
+                // Save to database
+                if let Some(pool) = state.db_pool.as_ref() {
+                    let api_response = crate::models::ApiResponse {
+                        id: eval_id,
+                        status: status.to_string(),
+                        result: crate::models::EvalResult::Success(eval_result),
+                    };
+                    if let Err(e) = crate::database::save_evaluation(pool, &api_response).await {
+                        log::error!("Failed to save batch evaluation to database: {}", e);
+                    }
+                }
+                responses.push(EvalResponse {
+                    ..response
                 });
             }
             Err(e) => {
@@ -169,6 +183,9 @@ pub async fn run_batch(
         }
     }
 
+    let average_model_latency_ms = if model_latency_count > 0 { total_model_latency / model_latency_count as u64 } else { 0 };
+    let average_judge_latency_ms = if judge_latency_count > 0 { total_judge_latency / judge_latency_count as u64 } else { 0 };
+
     Ok(HttpResponse::Ok().json(BatchEvalResponse {
         batch_id,
         status: "completed".to_string(),
@@ -176,6 +193,8 @@ pub async fn run_batch(
         completed,
         passed,
         failed,
+        average_model_latency_ms,
+        average_judge_latency_ms,
         results: responses,
     }))
 }
@@ -218,4 +237,13 @@ pub async fn get_history(state: web::Data<AppState>) -> Result<HttpResponse> {
     } else {
         Ok(HttpResponse::Ok().json(HistoryResponse { results: vec![] }))
     }
+}
+
+#[derive(Serialize)]
+pub struct ModelsResponse {
+    pub models: Vec<String>,
+}
+
+pub async fn get_models(state: web::Data<AppState>) -> Result<HttpResponse> {
+    Ok(HttpResponse::Ok().json(ModelsResponse { models: state.config.models.clone() }))
 }

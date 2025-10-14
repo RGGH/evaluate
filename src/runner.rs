@@ -1,6 +1,7 @@
 // src/runner.rs
 use crate::config::{AppConfig, EvalConfig};
 use crate::errors::{EvalError, Result};
+use futures::future;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -196,27 +197,30 @@ pub async fn run_eval(
     eval: &EvalConfig, 
     client: &Client
 ) -> Result<EvalResult> {
+    // Step 0: Render the eval config to substitute variables from metadata
+    let rendered_eval = eval.render()?;
+
     let eval_start = Instant::now();
     let separator = "=".repeat(60);
     println!("\n{}", separator);
-    println!("🎯 Starting evaluation for model: {}", eval.model);
+    println!("🎯 Starting evaluation for model: {}", rendered_eval.model);
     println!("{}\n", separator);
 
     // Step 1: Call the target model
-    println!("📝 Prompt: {}", eval.prompt);
+    println!("📝 Prompt: {}", rendered_eval.prompt);
     
     let (model_output, latency_ms) = call_gemini_api(
         client,
         &app.api_base,
         &app.api_key,
-        &eval.model,
-        &eval.prompt,
+        &rendered_eval.model,
+        &rendered_eval.prompt,
     )
     .await
     .map_err(|e| {
         eprintln!("❌ Model failed: {}", e);
         EvalError::ModelFailure {
-            model: eval.model.clone(),
+            model: rendered_eval.model.clone(),
         }
     })?;
 
@@ -224,15 +228,15 @@ pub async fn run_eval(
 
     // Step 2: Run judge evaluation if expected output provided
     let mut judge_latency_ms = None;
-    let judge_result = if let (Some(expected), Some(judge_model)) = 
-        (&eval.expected, &eval.judge_model) {
+    let judge_result = if let (Some(expected), Some(judge_model)) =
+        (&rendered_eval.expected, &rendered_eval.judge_model) {
         
         println!("⚖️  Running judge evaluation with model: {}", judge_model);
         
         let judge_prompt = create_judge_prompt(
             expected,
             &model_output,
-            eval.criteria.as_deref()
+            rendered_eval.criteria.as_deref()
         );
 
         match call_gemini_api(
@@ -278,10 +282,10 @@ pub async fn run_eval(
     println!("\n{}\n", separator);
 
     Ok(EvalResult {
-        model: eval.model.clone(),
-        prompt: eval.prompt.clone(),
+        model: rendered_eval.model.clone(),
+        prompt: rendered_eval.prompt.clone(),
         model_output,
-        expected: eval.expected.clone(),
+        expected: rendered_eval.expected.clone(),
         judge_result,
         timestamp: chrono::Utc::now().to_rfc3339(),
         latency_ms,
@@ -290,28 +294,25 @@ pub async fn run_eval(
     })
 }
 
-/// Run multiple evals and aggregate results
+/// Run multiple evals and aggregate results concurrently
 pub async fn run_batch_evals(
     app: &AppConfig,
     evals: Vec<EvalConfig>,
     client: &Client,
 ) -> Vec<Result<EvalResult>> {
-    let mut results = Vec::new();
     let batch_start = Instant::now();
-    
-    for (idx, eval) in evals.iter().enumerate() {
-        println!("\n🔄 Running eval {}/{}", idx + 1, evals.len());
-        let result = run_eval(app, eval, client).await;
-        results.push(result);
-        
-        // Add small delay between requests to avoid rate limiting
-        if idx < evals.len() - 1 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        }
-    }
-    
+    let total_evals = evals.len();
+
+    // list of futures and run them concurrently within the same task **
+    let futures: Vec<_> = evals
+        .iter()
+        .map(|eval| run_eval(app, eval, client))
+        .collect();
+
+    let results = future::join_all(futures).await;
+
     let batch_total_ms = batch_start.elapsed().as_millis() as u64;
-    println!("\n📊 Batch completed in {}ms", batch_total_ms);
-    
+    println!("\n📊 Batch of {} completed concurrently in {}ms", total_evals, batch_total_ms);
+
     results
 }
