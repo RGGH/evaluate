@@ -48,6 +48,16 @@ RUST_LOG=info
 
 ## Option 1 : Try it out with Docker
 
+Docker build (same for any OS):
+
+```bash
+docker build -t evaluate:latest .
+```
+
+Once you have built the image:
+
+Docker run (OS specific)
+
 ### Linux
 ```bash
 docker run --rm -it \
