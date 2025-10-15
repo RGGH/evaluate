@@ -21,9 +21,11 @@ A lightweight, flexible evaluation framework for testing models with automated j
 
 # Getting started
 
+### set up the .env file
+
 You can either download the binary, compile from source (using Rust/Cargo) or try out in Docker
 
-Whichever option you use, you will need to set up your .env file 
+Whichever option (1 or 2) you use, you will need to set up your ```.env``` file 
 
 You will need to create one with your text editor and add the following (add your own API keys)
 
@@ -42,7 +44,7 @@ OPENAI_MODELS=gpt-4o,gpt-4o-mini,gpt-3.5-turbo
 RUST_LOG=info
 ```
 
-## Try it out with Docker
+## Option 1 : Try it out with Docker
 
 ### Linux
 ```bash
@@ -71,7 +73,7 @@ docker run --rm -it -p 8080:8080 `
   evaluate:latest
 ```
 
-## Install
+## Option 2 : Install
 
 ```bash
 # 1. Clone the repository
