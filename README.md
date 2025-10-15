@@ -169,4 +169,11 @@ curl -X POST http://127.0.0.1:8080/api/v1/evals/batch \
 ### History
 <img width="994" height="940" alt="Screenshot from 2025-10-14 19-27-14" src="https://github.com/user-attachments/assets/982935f7-98b8-47ac-ab09-7cf95356f3ec" />
 
+# Built in Results Dashboard
+
+<img width="1225" height="921" alt="Screenshot from 2025-10-15 13-01-10" src="https://github.com/user-attachments/assets/ab887445-e816-42f3-96c5-96f356a8f98c" />
+
+<img width="1225" height="921" alt="Screenshot from 2025-10-15 13-01-25" src="https://github.com/user-attachments/assets/fcdd4516-ac83-41f8-95bd-c34626491e63" />
+
+
 
