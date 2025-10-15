@@ -96,16 +96,8 @@ You should see output similar to:
 [INFO] Starting database migration...
 [INFO] Starting server at 127.0.0.1:8080
 ```
-<img width="1208" height="580" alt="image" src="https://github.com/user-attachments/assets/b61d4b8c-0afb-4fb2-aabb-ff40ac6ad4ca" />
 
-
-## Features
-
-- 🚀 **Simple Configuration** - env file for API settings
-- 📝 **JSON Eval Definitions** - Easy-to-write test cases
-- 🤖 **AI-Powered Judging** - Use Gemini models to evaluate outputs semantically
-- ⚡ **Async Execution** - Fast parallel evaluation support
-- 🎯 **Flexible** - Test any Gemini model with any prompt
+---
 
 # Sample output - API - Gemini
 ```bash
