@@ -23,7 +23,27 @@ A lightweight, flexible evaluation framework for testing models with automated j
 
 # Getting started
 
-### set up the .env file
+You'll need:
+- Docker
+- Rust/Cargo
+- API keys for your LLM provider(s)
+
+If you use Ollama, add Llama3:
+
+```
+ollama pull llama3
+```
+---
+
+### TL;DR;
+
+set .env
+install evaluate or build and run it with Docker
+access it at port 8080 on localhost
+
+---
+
+#### set up the .env file
 
 You can either download the binary, compile from source (using Rust/Cargo) or try out in Docker
 
