@@ -1,7 +1,7 @@
 // src/runner.rs
 use crate::config::{AppConfig, EvalConfig};
 use crate::errors::{EvalError, Result};
-use crate::providers::{gemini::GeminiProvider, ollama::OllamaProvider, LlmProvider};
+use crate::providers::{gemini::GeminiProvider, ollama::OllamaProvider, openai::OpenAIProvider, LlmProvider};
 use futures::future;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
@@ -48,7 +48,6 @@ impl std::fmt::Display for JudgeVerdict {
 fn parse_judge_response(response: &str) -> JudgeResult {
     let response_lower = response.to_lowercase();
     
-    // Try to extract structured response if available
     let verdict = if response_lower.contains("verdict: pass") || 
                      (response_lower.starts_with("yes") || response_lower.contains("yes, they")) {
         JudgeVerdict::Pass
@@ -59,7 +58,6 @@ fn parse_judge_response(response: &str) -> JudgeResult {
         JudgeVerdict::Uncertain
     };
 
-    // Extract reasoning if present (look for lines after the verdict)
     let reasoning = if response.len() > 20 {
         Some(response.to_string())
     } else {
@@ -114,17 +112,47 @@ fn parse_model_string(model_str: &str) -> (String, String) {
     }
 }
 
+/// Call the appropriate provider based on the provider name
+async fn call_provider(
+    config: &AppConfig,
+    client: &reqwest::Client,
+    provider_name: &str,
+    model_name: &str,
+    prompt: &str,
+) -> Result<(String, u64)> {
+    match provider_name {
+        "gemini" => {
+            let gemini_config = config.gemini.as_ref()
+                .ok_or_else(|| EvalError::ProviderNotFound("gemini".to_string()))?;
+            let provider = GeminiProvider::new(client.clone(), gemini_config.clone());
+            provider.generate(model_name, prompt).await
+        }
+        "ollama" => {
+            let ollama_config = config.ollama.as_ref()
+                .ok_or_else(|| EvalError::ProviderNotFound("ollama".to_string()))?;
+            let provider = OllamaProvider::new(client.clone(), ollama_config.clone());
+            provider.generate(model_name, prompt).await
+        }
+        "openai" => {
+            let openai_config = config.openai.as_ref()
+                .ok_or_else(|| EvalError::ProviderNotFound("openai".to_string()))?;
+            let provider = OpenAIProvider::new(client.clone(), openai_config.clone());
+            provider.generate(model_name, prompt).await
+        }
+        _ => Err(EvalError::ProviderNotFound(provider_name.to_string())),
+    }
+}
+
 /// Run a single eval with comprehensive LLM-as-a-judge evaluation
 pub async fn run_eval(
     config: &AppConfig,
     eval: &EvalConfig,
     client: &reqwest::Client,
 ) -> Result<EvalResult> {
-    // Step 0: Render the eval config to substitute variables from metadata
     let rendered_eval = eval.render()?;
-
     let eval_start = Instant::now();
     let separator = "=".repeat(60);
+    
     println!("\n{}", separator);
     println!("🎯 Starting evaluation for model: {}", rendered_eval.model);
     println!("{}\n", separator);
@@ -134,21 +162,13 @@ pub async fn run_eval(
     
     println!("📝 Prompt: {}", rendered_eval.prompt);
     
-    let (model_output_str, latency_ms) = match provider_name.as_str() {
-        "gemini" => {
-            let gemini_config = config.gemini.as_ref()
-                .ok_or_else(|| EvalError::ProviderNotFound("gemini".to_string()))?;
-            let provider = GeminiProvider::new(client.clone(), gemini_config.clone());
-            provider.generate(&model_name, &rendered_eval.prompt).await
-        }
-        "ollama" => {
-            let ollama_config = config.ollama.as_ref()
-                .ok_or_else(|| EvalError::ProviderNotFound("ollama".to_string()))?;
-            let provider = OllamaProvider::new(client.clone(), ollama_config.clone());
-            provider.generate(&model_name, &rendered_eval.prompt).await
-        }
-        _ => return Err(EvalError::ProviderNotFound(provider_name)),
-    }.map_err(|e| {
+    let (model_output_str, latency_ms) = call_provider(
+        config,
+        client,
+        &provider_name,
+        &model_name,
+        &rendered_eval.prompt,
+    ).await.map_err(|e| {
         eprintln!("❌ Model failed: {}", e);
         EvalError::ModelFailure {
             model: rendered_eval.model.clone(),
@@ -172,21 +192,13 @@ pub async fn run_eval(
 
         let (judge_provider_name, judge_model_name) = parse_model_string(judge_model);
         
-        let judge_result = match judge_provider_name.as_str() {
-            "gemini" => {
-                let gemini_config = config.gemini.as_ref()
-                    .ok_or_else(|| EvalError::ProviderNotFound("gemini".to_string()))?;
-                let provider = GeminiProvider::new(client.clone(), gemini_config.clone());
-                provider.generate(&judge_model_name, &judge_prompt).await
-            }
-            "ollama" => {
-                let ollama_config = config.ollama.as_ref()
-                    .ok_or_else(|| EvalError::ProviderNotFound("ollama".to_string()))?;
-                let provider = OllamaProvider::new(client.clone(), ollama_config.clone());
-                provider.generate(&judge_model_name, &judge_prompt).await
-            }
-            _ => return Err(EvalError::ProviderNotFound(judge_provider_name)),
-        };
+        let judge_result = call_provider(
+            config,
+            client,
+            &judge_provider_name,
+            &judge_model_name,
+            &judge_prompt,
+        ).await;
 
         match judge_result {
             Ok((judge_response, judge_latency)) => {
@@ -244,7 +256,6 @@ pub async fn run_batch_evals(
     let batch_start = Instant::now();
     let total_evals = evals.len();
 
-    // list of futures and run them concurrently within the same task
     let futures: Vec<_> = evals
         .iter()
         .map(|eval| run_eval(config, eval, client))
