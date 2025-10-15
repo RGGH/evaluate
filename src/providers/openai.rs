@@ -2,7 +2,6 @@
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::time::Instant;
 
 use crate::config::OpenAIConfig;

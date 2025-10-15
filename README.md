@@ -19,7 +19,26 @@ A lightweight, flexible evaluation framework for testing models with automated j
 - [ ] Image Classifier Evals
 - [ ] Add OpenAI, Anthropic and more...
 
-### Install
+## Try it out with Docker
+
+### Linux/Mac    
+```bash
+docker run --rm -it -p 8080:8080 \
+  --env-file .env \
+  -v $(pwd)/data:/usr/local/bin/data \
+  evaluate:latest
+```
+
+### Windoze (powershell)
+
+```powershell
+docker run --rm -it -p 8080:8080 `
+  --env-file .env `
+  -v ${PWD}/data:/usr/local/bin/data `
+  evaluate:latest
+```
+
+## Install
 
 ```bash
 # 1. Clone the repository
