@@ -1,8 +1,9 @@
-// src/api/handlers/evals.rs
+// src/api/handlers/evals.rs - Add WebSocket broadcasting
 use actix_web::{web, HttpResponse, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::api::AppState;
+use crate::api::handlers::ws::{WsBroker, EvalUpdate};
 use crate::config::EvalConfig;
 use crate::runner;
 use serde_json::json;
@@ -39,18 +40,19 @@ pub struct BatchEvalResponse {
 
 pub async fn run_eval(
     state: web::Data<AppState>,
+    broker: web::Data<WsBroker>,
     req: web::Json<RunEvalRequest>,
 ) -> Result<HttpResponse> {
     let eval_id = Uuid::new_v4().to_string();
     let req_body = req.into_inner();
     let eval_config = EvalConfig {
-        model: req_body.model,
+        model: req_body.model.clone(),
         prompt: req_body.prompt,
         expected: req_body.expected,
         judge_model: req_body.judge_model,
         criteria: req_body.criteria,
-        tags: Vec::new(), // Single run endpoint doesn't support tags
-        metadata: None,   // Single run endpoint doesn't support metadata
+        tags: Vec::new(),
+        metadata: None,
     };
 
     match runner::run_eval(&state.config, &eval_config, &state.client).await {
@@ -65,6 +67,15 @@ pub async fn run_eval(
                 "completed"
             };
 
+            // Broadcast via WebSocket
+            broker.broadcast(EvalUpdate {
+                id: eval_id.clone(),
+                status: status.to_string(),
+                model: Some(req_body.model),
+                verdict: result.judge_result.as_ref().map(|j| j.verdict.to_string()),
+                latency_ms: Some(result.latency_ms),
+            }).await;
+
             let response = EvalResponse {
                 id: eval_id.clone(),
                 status: status.to_string(),
@@ -72,7 +83,6 @@ pub async fn run_eval(
                 error: None,
             };
 
-            // Save to database
             if let Some(pool) = state.db_pool.as_ref() {
                 let api_response = crate::models::ApiResponse {
                     id: eval_id,
@@ -88,6 +98,16 @@ pub async fn run_eval(
         }
         Err(e) => {
             let error_string = e.to_string();
+            
+            // Broadcast error via WebSocket
+            broker.broadcast(EvalUpdate {
+                id: eval_id.clone(),
+                status: "error".to_string(),
+                model: Some(req_body.model),
+                verdict: None,
+                latency_ms: None,
+            }).await;
+
             Ok(HttpResponse::InternalServerError().json(EvalResponse {
                 id: eval_id,
                 status: "error".to_string(),
@@ -100,6 +120,7 @@ pub async fn run_eval(
 
 pub async fn run_batch(
     state: web::Data<AppState>,
+    broker: web::Data<WsBroker>,
     eval_configs: web::Json<Vec<EvalConfig>>,
 ) -> Result<HttpResponse> {
     let batch_id = Uuid::new_v4().to_string();
@@ -149,6 +170,15 @@ pub async fn run_batch(
                     "completed"
                 };
 
+                // Broadcast each eval result via WebSocket
+                broker.broadcast(EvalUpdate {
+                    id: eval_id.clone(),
+                    status: status.to_string(),
+                    model: Some(eval_result.model.clone()),
+                    verdict: eval_result.judge_result.as_ref().map(|j| j.verdict.to_string()),
+                    latency_ms: Some(eval_result.latency_ms),
+                }).await;
+
                 let response = EvalResponse {
                     id: eval_id.clone(),
                     status: status.to_string(),
@@ -156,7 +186,6 @@ pub async fn run_batch(
                     error: None,
                 };
 
-                // Save to database
                 if let Some(pool) = state.db_pool.as_ref() {
                     let api_response = crate::models::ApiResponse {
                         id: eval_id,
@@ -167,12 +196,19 @@ pub async fn run_batch(
                         log::error!("Failed to save batch evaluation to database: {}", e);
                     }
                 }
-                responses.push(EvalResponse {
-                    ..response
-                });
+                responses.push(response);
             }
             Err(e) => {
                 failed += 1;
+                
+                broker.broadcast(EvalUpdate {
+                    id: eval_id.clone(),
+                    status: "error".to_string(),
+                    model: None,
+                    verdict: None,
+                    latency_ms: None,
+                }).await;
+
                 responses.push(EvalResponse {
                     id: eval_id,
                     status: "error".to_string(),

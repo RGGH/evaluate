@@ -1,5 +1,4 @@
 // src/main.rs
-
 mod config;
 mod api;
 mod errors;
@@ -12,6 +11,7 @@ mod banner;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, middleware, Responder};
 use actix_cors::Cors;
 use api::{configure_routes, AppState};
+use api::handlers::WsBroker;
 use rust_embed::RustEmbed;
 use std::borrow::Cow;
 
@@ -21,16 +21,13 @@ struct StaticAssets;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Print the startup banner
     banner::print_banner();
 
-    // Load .env file - fail loudly if it doesn't exist
     if let Err(e) = dotenv::dotenv() {
         eprintln!("⚠️  Warning: Could not load .env file: {}", e);
         eprintln!("   Make sure DATABASE_URL is set in your environment");
     }
     
-    // Debug: Check if DATABASE_URL is set
     match std::env::var("DATABASE_URL") {
         Ok(url) => println!("✅ DATABASE_URL set to: {}", url),
         Err(_) => eprintln!("❌ DATABASE_URL not set!"),
@@ -42,15 +39,19 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to load app configuration from environment");
     
     let state = AppState::new(app_config).await;
+    let ws_broker = WsBroker::new();
     
     println!("🚀 Starting server...");
     println!("📊 Frontend available at http://127.0.0.1:8080");
+    println!("📈 Results dashboard at http://127.0.0.1:8080/results.html");
+    println!("🔌 WebSocket endpoint at ws://127.0.0.1:8080/api/v1/ws");
 
     HttpServer::new(move || {
         let cors = Cors::permissive();
         
         App::new()
-            .app_data(actix_web::web::Data::new(state.clone()))
+            .app_data(web::Data::new(state.clone()))
+            .app_data(web::Data::new(ws_broker.clone()))
             .wrap(cors)
             .wrap(middleware::Logger::default())
             .configure(configure_routes)
@@ -65,7 +66,6 @@ async fn static_file_handler(req: HttpRequest) -> impl Responder {
     let path = if req.path() == "/" {
         "index.html"
     } else {
-        // trim leading '/'
         &req.path()[1..]
     };
 
