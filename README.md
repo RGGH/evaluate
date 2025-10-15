@@ -15,9 +15,8 @@ A lightweight, flexible evaluation framework for testing models with automated j
 - API endpoints
 
 ## Todo
-- [ ] Visualize output
 - [ ] Image Classifier Evals
-- [ ] Add OpenAI, Anthropic and more...
+- [ ] Add Anthropic and more...
 
 # Getting started
 
