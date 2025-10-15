@@ -153,7 +153,7 @@ You can set the provider in the json file and use a generic syntax for batch eva
     "judge_model": "gemini:gemini-1.5-pro-latest"
  ```   
 
-Call the endpoint
+Call the endpoint ```api/v1/evals/batch``` and supply a modified/synthetic 'qa_sameple.json' file, or your own .json file
 
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/evals/batch \
