@@ -14,7 +14,8 @@ A lightweight, flexible evaluation framework for testing models with automated j
 - batch evals to multiple providers/models
 - API endpoints
 
-https://github.com/RGGH/evaluate/blob/main/assets/output.webp
+![Application Demo](https://github.com/RGGH/evaluate/blob/main/assets/output.webp)
+
 
 ## Todo
 - [ ] Image Classifier Evals
