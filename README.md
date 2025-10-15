@@ -55,13 +55,17 @@ Add into .env
 ```bash
 DATABASE_URL=sqlite:data/evals.db
 
-api_base = "https://generativelanguage.googleapis.com"
-api_key = "AIzaSyAkQnxxxxxxxxxxxxxxxx"
+api_base="https://generativelanguage.googleapis.com"
+api_key="AIzaSyAkQnxxxxxxxxxxxxxxxx"
 
-
-GEMINI_MODELS=gemini-2.5-pro,gemini-2.5-flash,gemini-1.5-pro-latest,gemini-1.5-flash-latest
+GEMINI_MODELS=gemini-2.5-pro,gemini-2.5-flash
 
 OLLAMA_API_BASE="http://localhost:11434"
+
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxx
+OPENAI_MODELS=gpt-4o,gpt-4o-mini,gpt-3.5-turbo
+
 ```
 
 Run the code
@@ -168,7 +172,7 @@ You can set the provider in the json file and use a generic syntax for batch eva
     "judge_model": "gemini:gemini-1.5-pro-latest"
  ```   
 
-Call the endpoint
+Call the endpoint ```api/v1/evals/batch``` and supply a modified/synthetic 'qa_sameple.json' file, or your own .json file
 
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/evals/batch \
