@@ -19,9 +19,42 @@ A lightweight, flexible evaluation framework for testing models with automated j
 - [ ] Image Classifier Evals
 - [ ] Add OpenAI, Anthropic and more...
 
+# Getting started
+
+You can either download the binary, compile from source (using Rust/Cargo) or try out in Docker
+
+Whichever option you use, you will need to set up your .env file 
+
+You will need to create one with your text editor and add the following (add your own API keys)
+
+Add into .env
+
+(see env.example)
+```bash
+DATABASE_URL=sqlite:./data/evals.db
+GEMINI_API_BASE=https://generativelanguage.googleapis.com
+GEMINI_API_KEY=AIzaxxxxxxxxxxxxxxxxxxxxxxxxxxc
+GEMINI_MODELS=gemini-2.5-pro,gemini-2.5-flash
+OLLAMA_API_BASE=http://host.docker.internal:11434
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxx
+OPENAI_MODELS=gpt-4o,gpt-4o-mini,gpt-3.5-turbo
+RUST_LOG=info
+```
+
 ## Try it out with Docker
 
-### Linux/Mac    
+### Linux
+```bash
+docker run --rm -it \
+  --network host \
+  --env-file .env \
+  -v $(pwd)/data:/usr/local/bin/data \
+  -e OLLAMA_API_BASE=http://localhost:11434 \
+  evaluate:latest
+```
+
+### Mac    
 ```bash
 docker run --rm -it -p 8080:8080 \
   --env-file .env \
@@ -48,22 +81,7 @@ git clone git@github.com:RGGH/evaluate.git
 cd evaluate
 ```
 
-Add into .env
-
-(see env.example)
-```bash
-DATABASE_URL=sqlite:./data/evals.db
-GEMINI_API_BASE=https://generativelanguage.googleapis.com
-GEMINI_API_KEY=AIzaxxxxxxxxxxxxxxxxxxxxxxxxxxc
-GEMINI_MODELS=gemini-2.5-pro,gemini-2.5-flash
-OLLAMA_API_BASE=http://host.docker.internal:11434
-OPENAI_API_BASE=https://api.openai.com/v1
-OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxx
-OPENAI_MODELS=gpt-4o,gpt-4o-mini,gpt-3.5-turbo
-RUST_LOG=info
-```
-
-Run the code
+Run the code (you will need RUST + Cargo installed)
 
 ```bash
 cargo run
