@@ -18,17 +18,26 @@ pub struct OllamaConfig {
     pub models: Vec<String>,
 }
 
+/// Configuration for the OpenAI provider.
+#[derive(Debug, Clone)]
+pub struct OpenAIConfig {
+    pub api_base: String,
+    pub api_key: String,
+    pub models: Vec<String>,
+}
+
 /// High-level application configuration loaded from environment variables.
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     pub gemini: Option<GeminiConfig>,
     pub ollama: Option<OllamaConfig>,
+    pub openai: Option<OpenAIConfig>,
     pub models: Vec<String>,
 }
 
 /// Contains all the information needed to run one prompt against a model
 /// The model string is expected to be in the format `provider:model_name`,
-/// e.g., `gemini:gemini-1.5-flash` or `ollama:llama3`.
+/// e.g., `gemini:gemini-1.5-flash`, `ollama:llama3`, or `openai:gpt-4`.
 /// If no provider is specified, it will default to `gemini`.
 #[derive(Deserialize, Debug, Clone)]
 pub struct EvalConfig {
@@ -63,10 +72,10 @@ pub struct EvalConfig {
 impl AppConfig {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {
-        let mut gemini_config = None;
         let mut all_models = Vec::new();
         
-        if let Ok(api_key) = std::env::var("GEMINI_API_KEY") {
+        // Gemini configuration
+        let gemini_config = if let Ok(api_key) = std::env::var("GEMINI_API_KEY") {
             let api_base = std::env::var("GEMINI_API_BASE")
                 .unwrap_or_else(|_| "https://generativelanguage.googleapis.com".to_string());
             let models_str = std::env::var("GEMINI_MODELS").unwrap_or_else(|_| {
@@ -74,26 +83,49 @@ impl AppConfig {
             });
             let models: Vec<String> = models_str.split(',').map(|s| s.trim().to_string()).collect();
             all_models.extend(models.iter().map(|m| format!("gemini:{}", m)));
-            gemini_config = Some(GeminiConfig { api_base, api_key, models });
-        }
+            Some(GeminiConfig { api_base, api_key, models })
+        } else {
+            None
+        };
 
-        let mut ollama_config = None;
-        if let Ok(api_base) = std::env::var("OLLAMA_API_BASE") {
-             let models_str = std::env::var("OLLAMA_MODELS").unwrap_or_else(|_| {
+        // Ollama configuration
+        let ollama_config = if let Ok(api_base) = std::env::var("OLLAMA_API_BASE") {
+            let models_str = std::env::var("OLLAMA_MODELS").unwrap_or_else(|_| {
                 "llama3,gemma".to_string()
             });
             let models: Vec<String> = models_str.split(',').map(|s| s.trim().to_string()).collect();
             all_models.extend(models.iter().map(|m| format!("ollama:{}", m)));
-            ollama_config = Some(OllamaConfig { api_base, models });
-        }
+            Some(OllamaConfig { api_base, models })
+        } else {
+            None
+        };
 
-        if gemini_config.is_none() && ollama_config.is_none() {
+        // OpenAI configuration
+        let openai_config = if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
+            let api_base = std::env::var("OPENAI_API_BASE")
+                .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
+            let models_str = std::env::var("OPENAI_MODELS").unwrap_or_else(|_| {
+                "gpt-4o,gpt-4o-mini,gpt-3.5-turbo".to_string()
+            });
+            let models: Vec<String> = models_str.split(',').map(|s| s.trim().to_string()).collect();
+            all_models.extend(models.iter().map(|m| format!("openai:{}", m)));
+            Some(OpenAIConfig { api_base, api_key, models })
+        } else {
+            None
+        };
+
+        if gemini_config.is_none() && ollama_config.is_none() && openai_config.is_none() {
             return Err(EvalError::Config(
-                "No LLM providers configured. Please set either GEMINI_API_KEY or OLLAMA_API_BASE.".to_string()
+                "No LLM providers configured. Please set at least one of: GEMINI_API_KEY, OLLAMA_API_BASE, or OPENAI_API_KEY.".to_string()
             ));
         }
 
-        Ok(AppConfig { gemini: gemini_config, ollama: ollama_config, models: all_models })
+        Ok(AppConfig { 
+            gemini: gemini_config, 
+            ollama: ollama_config,
+            openai: openai_config,
+            models: all_models 
+        })
     }
 }
 
@@ -122,7 +154,7 @@ fn render_template(template: &str, data: &serde_json::Value) -> String {
         data.get(key)
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
-            .unwrap_or_else(|| caps[0].to_string()) // Keep original placeholder if key not found
+            .unwrap_or_else(|| caps[0].to_string())
     }).to_string()
 }
 
@@ -133,7 +165,6 @@ mod tests {
 
     #[test]
     fn test_eval_config_render() {
-        // 1. Create an EvalConfig with placeholders
         let eval_config = EvalConfig {
             model: "gemini-2.5-flash".to_string(),
             prompt: "What is the capital of {{country}}?".to_string(),
@@ -141,24 +172,20 @@ mod tests {
             judge_model: Some("gemini-2.5-pro".to_string()),
             criteria: None,
             tags: vec!["geography".to_string()],
-            // 2. Add metadata with the values to substitute
             metadata: Some(json!({
                 "country": "France",
                 "capital": "Paris"
             })),
         };
 
-        // 3. Call the render function
         let rendered_config = eval_config.render().unwrap();
 
-        // 4. Assert that the placeholders have been replaced
         assert_eq!(rendered_config.prompt, "What is the capital of France?");
         assert_eq!(
             rendered_config.expected,
             Some("The capital is Paris.".to_string())
         );
 
-        // Metadata and other fields should remain unchanged
         assert_eq!(rendered_config.model, eval_config.model);
         assert_eq!(rendered_config.metadata, eval_config.metadata);
     }

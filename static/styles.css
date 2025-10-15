@@ -329,6 +329,31 @@ textarea {
     word-wrap: break-word;
 }
 
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th {
+    background: #1a1b1b;
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    color: #fff;
+    border-bottom: 2px solid silver;
+}
+
+td {
+    padding: 15px;
+    border-bottom: 1px solid #444;
+}
+
+tr:hover {
+    background: #333434;
+}
+
 /* Batch Results */
 .batch-summary {
     display: grid;
