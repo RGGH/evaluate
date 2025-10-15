@@ -37,9 +37,10 @@ ollama pull llama3
 
 ### TL;DR;
 
-set .env
-install evaluate or build and run it with Docker
-access it at port 8080 on localhost
+- set .env
+- install evaluate or build and run it with Docker
+- access it at port 8080 on localhost
+- Call API from Python, JS, cURL, Postman etc or access GUI via link in browser
 
 ---
 
