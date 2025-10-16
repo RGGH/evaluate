@@ -3,7 +3,7 @@
   <img width="687" height="391" alt="Screenshot from 2025-10-13 21-00-43" src="https://github.com/user-attachments/assets/43b41099-8cbb-47e8-81c3-dbacf5b225a8" />
 </div> -->
 
-<img width="512" height="512" alt="unnamed" src="https://github.com/user-attachments/assets/76bccec4-68fc-4a6c-a8d3-a84194822b2b" />
+<img width="412" height="412" alt="unnamed" src="https://github.com/user-attachments/assets/76bccec4-68fc-4a6c-a8d3-a84194822b2b" />
 
 
 ---
@@ -20,6 +20,7 @@ A lightweight, flexible evaluation framework for testing models with automated j
 ### References
 - https://arxiv.org/html/2412.05579v2
 - https://github.com/openai/evals
+- https://learn.microsoft.com/en-us/azure/ai-foundry/how-to/evaluate-generative-ai-app#query-and-response-metric-requirements
 
 ![Application Demo](https://github.com/RGGH/evaluate/blob/main/assets/output.webp)
 
