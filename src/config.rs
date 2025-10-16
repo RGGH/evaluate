@@ -3,6 +3,14 @@ use serde::Deserialize;
 use regex::Regex;
 use crate::errors::{Result, EvalError};
 
+/// Configuration for the Anthropic provider.
+#[derive(Debug, Clone)]
+pub struct AnthropicConfig {
+    pub api_base: String,
+    pub api_key: String,
+    pub models: Vec<String>,
+}
+
 /// Configuration for the Gemini provider.
 #[derive(Debug, Clone)]
 pub struct GeminiConfig {
@@ -29,6 +37,7 @@ pub struct OpenAIConfig {
 /// High-level application configuration loaded from environment variables.
 #[derive(Debug, Clone)]
 pub struct AppConfig {
+    pub anthropic: Option<AnthropicConfig>,
     pub gemini: Option<GeminiConfig>,
     pub ollama: Option<OllamaConfig>,
     pub openai: Option<OpenAIConfig>,
@@ -37,7 +46,7 @@ pub struct AppConfig {
 
 /// Contains all the information needed to run one prompt against a model
 /// The model string is expected to be in the format `provider:model_name`,
-/// e.g., `gemini:gemini-1.5-flash`, `ollama:llama3`, or `openai:gpt-4`.
+/// e.g., `anthropic:claude-sonnet-4`, `gemini:gemini-1.5-flash`, `ollama:llama3`, or `openai:gpt-4`.
 /// If no provider is specified, it will default to `gemini`.
 #[derive(Deserialize, Debug, Clone)]
 pub struct EvalConfig {
@@ -73,6 +82,20 @@ impl AppConfig {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {
         let mut all_models = Vec::new();
+        
+        // Anthropic configuration
+        let anthropic_config = if let Ok(api_key) = std::env::var("ANTHROPIC_API_KEY") {
+            let api_base = std::env::var("ANTHROPIC_API_BASE")
+                .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
+            let models_str = std::env::var("ANTHROPIC_MODELS").unwrap_or_else(|_| {
+                "claude-opus-4,claude-sonnet-4,claude-sonnet-4-5,claude-haiku-4".to_string()
+            });
+            let models: Vec<String> = models_str.split(',').map(|s| s.trim().to_string()).collect();
+            all_models.extend(models.iter().map(|m| format!("anthropic:{}", m)));
+            Some(AnthropicConfig { api_base, api_key, models })
+        } else {
+            None
+        };
         
         // Gemini configuration
         let gemini_config = if let Ok(api_key) = std::env::var("GEMINI_API_KEY") {
@@ -114,13 +137,14 @@ impl AppConfig {
             None
         };
 
-        if gemini_config.is_none() && ollama_config.is_none() && openai_config.is_none() {
+        if anthropic_config.is_none() && gemini_config.is_none() && ollama_config.is_none() && openai_config.is_none() {
             return Err(EvalError::Config(
-                "No LLM providers configured. Please set at least one of: GEMINI_API_KEY, OLLAMA_API_BASE, or OPENAI_API_KEY.".to_string()
+                "No LLM providers configured. Please set at least one of: ANTHROPIC_API_KEY, GEMINI_API_KEY, OLLAMA_API_BASE, or OPENAI_API_KEY.".to_string()
             ));
         }
 
         Ok(AppConfig { 
+            anthropic: anthropic_config,
             gemini: gemini_config, 
             ollama: ollama_config,
             openai: openai_config,
@@ -147,6 +171,7 @@ impl EvalConfig {
 }
 
 /// Simple template renderer using regex.
+/// enables parameterized test cases
 fn render_template(template: &str, data: &serde_json::Value) -> String {
     let re = Regex::new(r"\{\{\s*(\w+)\s*\}\}").unwrap();
     re.replace_all(template, |caps: &regex::Captures| {

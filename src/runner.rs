@@ -1,7 +1,7 @@
 // src/runner.rs
 use crate::config::{AppConfig, EvalConfig};
 use crate::errors::{EvalError, Result};
-use crate::providers::{gemini::GeminiProvider, ollama::OllamaProvider, openai::OpenAIProvider, LlmProvider};
+use crate::providers::{anthropic::AnthropicProvider, gemini::GeminiProvider, ollama::OllamaProvider, openai::OpenAIProvider, LlmProvider};
 use futures::future;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
@@ -121,6 +121,12 @@ async fn call_provider(
     prompt: &str,
 ) -> Result<(String, u64)> {
     match provider_name {
+        "anthropic" => {
+            let anthropic_config = config.anthropic.as_ref()
+                .ok_or_else(|| EvalError::ProviderNotFound("anthropic".to_string()))?;
+            let provider = AnthropicProvider::new(client.clone(), anthropic_config.clone());
+            provider.generate(model_name, prompt).await
+        }
         "gemini" => {
             let gemini_config = config.gemini.as_ref()
                 .ok_or_else(|| EvalError::ProviderNotFound("gemini".to_string()))?;
