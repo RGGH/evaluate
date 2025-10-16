@@ -1,7 +1,7 @@
 [![Rust Tests](https://github.com/RGGH/evaluate/actions/workflows/test.yml/badge.svg)](https://github.com/RGGH/evaluate/actions/workflows/test.yml)
-<div align="center">
+<!-- <div align="center">
   <img width="687" height="391" alt="Screenshot from 2025-10-13 21-00-43" src="https://github.com/user-attachments/assets/43b41099-8cbb-47e8-81c3-dbacf5b225a8" />
-</div>
+</div> -->
 
 <img width="512" height="512" alt="unnamed" src="https://github.com/user-attachments/assets/76bccec4-68fc-4a6c-a8d3-a84194822b2b" />
 
