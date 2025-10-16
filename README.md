@@ -17,8 +17,11 @@ A lightweight, flexible evaluation 'eval' framework for testing models with auto
 - batch evals to multiple providers/models
 - API endpoints
 
-## Python SDK
+### 🐍 Python SDK Available
+
+If you want to use 'evaluate' via your own Python scripts or Jupyter Notebooks, you can use the SDK:
 https://pypi.org/project/llmeval-sdk/
+(Example usage with Python is shown on that PyPi page)
 
 ### References
 - https://arxiv.org/html/2412.05579v2
