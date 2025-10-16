@@ -19,7 +19,6 @@ A lightweight, flexible evaluation framework for testing models with automated j
 
 ## Todo
 - [ ] Image Classifier Evals
-- [ ] Add Anthropic and more...
 
 # Getting started
 
@@ -64,6 +63,8 @@ OLLAMA_API_BASE=http://host.docker.internal:11434
 OPENAI_API_BASE=https://api.openai.com/v1
 OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxx
 OPENAI_MODELS=gpt-4o,gpt-4o-mini,gpt-3.5-turbo
+ANTHROPIC_API_KEY=sk-placeholder-ant-a1b2c3d4e5f6-a1b2c3d4e5f6-a1b2c3d4e5f6-a1b2c3d4e5f6
+ANTHROPIC_MODELS=claude-opus-4,claude-sonnet-4-5,claude-haiku-4
 RUST_LOG=info
 ```
 
