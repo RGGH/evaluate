@@ -14,13 +14,37 @@ A lightweight, flexible evaluation framework for testing models with automated j
 - batch evals to multiple providers/models
 - API endpoints
 
+![Application Demo](https://github.com/RGGH/evaluate/blob/main/assets/output.webp)
+
+
 ## Todo
 - [ ] Image Classifier Evals
 - [ ] Add Anthropic and more...
 
 # Getting started
 
-### set up the .env file
+You'll need:
+- Docker
+- Rust/Cargo
+- API keys for your LLM provider(s)
+
+If you use Ollama, add Llama3:
+
+```
+ollama pull llama3
+```
+---
+
+### TL;DR;
+
+- set .env
+- install evaluate or build and run it with Docker
+- access it at port 8080 on localhost
+- Call API from Python, JS, cURL, Postman etc or access GUI via link in browser
+
+---
+
+#### set up the .env file
 
 You can either download the binary, compile from source (using Rust/Cargo) or try out in Docker
 
@@ -44,6 +68,16 @@ RUST_LOG=info
 ```
 
 ## Option 1 : Try it out with Docker
+
+Docker build (same for any OS):
+
+```bash
+docker build -t evaluate:latest .
+```
+
+Once you have built the image:
+
+Docker run (OS specific)
 
 ### Linux
 ```bash
@@ -93,16 +127,8 @@ You should see output similar to:
 [INFO] Starting database migration...
 [INFO] Starting server at 127.0.0.1:8080
 ```
-<img width="1208" height="580" alt="image" src="https://github.com/user-attachments/assets/b61d4b8c-0afb-4fb2-aabb-ff40ac6ad4ca" />
 
-
-## Features
-
-- 🚀 **Simple Configuration** - env file for API settings
-- 📝 **JSON Eval Definitions** - Easy-to-write test cases
-- 🤖 **AI-Powered Judging** - Use Gemini models to evaluate outputs semantically
-- ⚡ **Async Execution** - Fast parallel evaluation support
-- 🎯 **Flexible** - Test any Gemini model with any prompt
+---
 
 # Sample output - API - Gemini
 ```bash
