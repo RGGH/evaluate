@@ -12,12 +12,13 @@
 
 A lightweight, flexible evaluation 'eval' framework for testing models with automated judging capabilities, supporting Gemini, Anthropic, OpenAI, and  Ollama.
 
-
-
 - Sqlite database for saving history
 - Specify LLM provider for LLM and Judge
 - batch evals to multiple providers/models
 - API endpoints
+
+## Python SDK
+https://pypi.org/project/llmeval-sdk/
 
 ### References
 - https://arxiv.org/html/2412.05579v2
