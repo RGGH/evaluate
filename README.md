@@ -14,6 +14,10 @@ A lightweight, flexible evaluation framework for testing models with automated j
 - batch evals to multiple providers/models
 - API endpoints
 
+### References
+- https://arxiv.org/html/2412.05579v2
+- https://github.com/openai/evals
+
 ![Application Demo](https://github.com/RGGH/evaluate/blob/main/assets/output.webp)
 
 
