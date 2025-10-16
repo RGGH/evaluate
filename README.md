@@ -20,7 +20,9 @@ A lightweight, flexible evaluation 'eval' framework for testing models with auto
 ### 🐍 Python SDK Available
 
 If you want to use 'evaluate' via your own Python scripts or Jupyter Notebooks, you can use the SDK:
+
 https://pypi.org/project/llmeval-sdk/
+
 (Example usage with Python is shown on that PyPi page)
 
 ### References
