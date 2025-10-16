@@ -502,5 +502,12 @@ ws.onmessage = (event) => {
 };
 ```
 
+# Further work
+
+One major limitation of LLMs is knowledge recency. Since these models are trained on fixed datasets that quickly become outdated, they often struggle with topics that rely on the latest information — such as new laws, policies, or medical guidance. This means their judgements can be based on old or irrelevant data, leading to unreliable results. To keep them up to date, techniques like retrieval-augmented generation (RAG), regular fine-tuning, and continual learning can help ensure LLMs-as-judges have access to the most current knowledge when making decisions.
+
+Another key weakness is hallucination, where LLMs confidently generate information that isn’t true. In an evaluation context, this could mean inventing fake references, misinterpreting facts, or fabricating evidence — all of which can undermine trust in their output. Building in robust fact-checking systems that verify claims against reliable sources is essential to reduce the impact of these errors and maintain fairness in judgement.
+
+Lastly, LLMs often face domain-specific knowledge gaps. While they’re great generalists, they can lack the deep understanding needed for complex areas like law, finance, or medicine. Integrating domain-specific knowledge graphs or using RAG to pull in expert information can help bridge this gap, allowing them to deliver more accurate and context-aware evaluations.
 
 
