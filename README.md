@@ -8,9 +8,9 @@
 
 ---
 
-# Evaluate - An LLM Eval Framework
+# Evaluate - An LLM Testing Framework
 
-A lightweight, flexible evaluation framework for testing models with automated judging capabilities, supporting Gemini, Anthropic, OpenAI, and  Ollama.
+A lightweight, flexible evaluation 'eval' framework for testing models with automated judging capabilities, supporting Gemini, Anthropic, OpenAI, and  Ollama.
 
 
 
