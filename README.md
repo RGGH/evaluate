@@ -10,7 +10,9 @@
 
 # Evaluate - An LLM Eval Framework
 
-A lightweight, flexible evaluation framework for testing models with automated judging capabilities, supporting both Gemini and Ollama.
+A lightweight, flexible evaluation framework for testing models with automated judging capabilities, supporting Gemini, Anthropic, OpenAI, and  Ollama.
+
+
 
 - Sqlite database for saving history
 - Specify LLM provider for LLM and Judge
@@ -449,6 +451,10 @@ Models are specified in the format `provider:model_name`:
 - `openai:gpt-4o`
 - `openai:gpt-4o-mini`
 - `openai:gpt-3.5-turbo`
+- `anthropic:claude-opus-4`
+- `anthropic:claude-sonnet-4`
+- `anthropic:claude-sonnet-4-5`
+- `anthropic:claude-haiku-4`
 
 If no provider is specified, `gemini` is used as the default.
 
@@ -463,10 +469,10 @@ If no provider is specified, `gemini` is used as the default.
 curl -X POST http://localhost:8080/api/v1/evals/run \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gemini:gemini-1.5-flash-latest",
+    "model": "gemini:gemini-2.5-flash-latest",
     "prompt": "What is the capital of France?",
     "expected": "Paris",
-    "judge_model": "gemini:gemini-1.5-pro-latest"
+    "judge_model": "gemini:gemini-2.5-pro-latest"
   }'
 ```
 
@@ -476,7 +482,7 @@ curl -X POST http://localhost:8080/api/v1/evals/batch \
   -H "Content-Type: application/json" \
   -d '[
     {
-      "model": "gemini:gemini-1.5-flash-latest",
+      "model": "gemini:gemini-2.5-flash-latest",
       "prompt": "What is 2+2?",
       "expected": "4"
     },
@@ -502,12 +508,32 @@ ws.onmessage = (event) => {
 };
 ```
 
-# Further work
+## LLM inherent weaknesses:
 
 One major limitation of LLMs is knowledge recency. Since these models are trained on fixed datasets that quickly become outdated, they often struggle with topics that rely on the latest information — such as new laws, policies, or medical guidance. This means their judgements can be based on old or irrelevant data, leading to unreliable results. To keep them up to date, techniques like retrieval-augmented generation (RAG), regular fine-tuning, and continual learning can help ensure LLMs-as-judges have access to the most current knowledge when making decisions.
 
 Another key weakness is hallucination, where LLMs confidently generate information that isn’t true. In an evaluation context, this could mean inventing fake references, misinterpreting facts, or fabricating evidence — all of which can undermine trust in their output. Building in robust fact-checking systems that verify claims against reliable sources is essential to reduce the impact of these errors and maintain fairness in judgement.
 
 Lastly, LLMs often face domain-specific knowledge gaps. While they’re great generalists, they can lack the deep understanding needed for complex areas like law, finance, or medicine. Integrating domain-specific knowledge graphs or using RAG to pull in expert information can help bridge this gap, allowing them to deliver more accurate and context-aware evaluations.
+
+## Contributing
+
+Thank you for your interest in contributing! 🎉
+
+Rust, Python, front end JS/TS all welcome - see current issues.
+
+We welcome contributions of all kinds — bug fixes, improvements, documentation, examples, or new features. Here’s how you can get started:
+
+Fork the repository and create a new branch for your changes.
+
+Make your changes with clear, descriptive commit messages.
+
+Open a Pull Request explaining what you’ve done and why.
+
+Please make sure your code follows the existing style and passes any tests. For larger changes, feel free to open an issue first to discuss your approach.
+
+By contributing, you agree that your work will be licensed under this project’s license.
+
+Thank you for helping make this project better! 💡
 
 
