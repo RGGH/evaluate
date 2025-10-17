@@ -1,7 +1,7 @@
 // src/runner.rs
 use crate::config::{AppConfig, EvalConfig};
 use crate::errors::{EvalError, Result};
-use crate::providers::{anthropic::AnthropicProvider, gemini::GeminiProvider, ollama::OllamaProvider, openai::OpenAIProvider, LlmProvider};
+use crate::providers::{anthropic::AnthropicProvider, gemini::GeminiProvider, ollama::OllamaProvider, openai::OpenAIProvider, LlmProvider, TokenUsage};
 use futures::future;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
@@ -16,6 +16,8 @@ pub struct EvalResult {
     pub timestamp: String,
     pub latency_ms: u64,
     pub judge_latency_ms: Option<u64>,
+    pub token_usage: Option<TokenUsage>,
+    pub judge_token_usage: Option<TokenUsage>,
     pub total_latency_ms: u64,
 }
 
@@ -23,6 +25,7 @@ pub struct EvalResult {
 pub struct JudgeResult {
     pub judge_model: String,
     pub verdict: JudgeVerdict,
+    #[serde(rename = "reasoning")]
     pub reasoning: Option<String>,
     pub confidence: Option<f32>,
 }
@@ -119,7 +122,7 @@ async fn call_provider(
     provider_name: &str,
     model_name: &str,
     prompt: &str,
-) -> Result<(String, u64)> {
+) -> Result<(String, u64, TokenUsage)> {
     match provider_name {
         "anthropic" => {
             let anthropic_config = config.anthropic.as_ref()
@@ -169,7 +172,7 @@ pub async fn run_eval(
     println!("📝 Prompt: {}", rendered_eval.prompt);
     
     // --- MODIFIED LOGIC: Preserve ProviderNotFound Error ---
-    let (model_output_str, latency_ms) = match call_provider(
+    let (model_output_str, latency_ms, token_usage) = match call_provider(
         config,
         client,
         &provider_name,
@@ -194,6 +197,7 @@ pub async fn run_eval(
 
     // Step 2: Run judge evaluation if expected output provided
     let mut judge_latency_ms = None;
+    let mut judge_token_usage = None;
     let judge_result = if let (Some(expected), Some(judge_model)) =
         (&rendered_eval.expected, &rendered_eval.judge_model) {
         
@@ -216,8 +220,9 @@ pub async fn run_eval(
         ).await;
 
         match judge_result {
-            Ok((judge_response, judge_latency)) => {
+            Ok((judge_response, judge_latency, tokens)) => {
                 judge_latency_ms = Some(judge_latency);
+                judge_token_usage = Some(tokens);
                 println!("\n⚖️  Judge Response ({}ms):\n{}\n", judge_latency, &judge_response);
                 
                 let mut result = parse_judge_response(&judge_response);
@@ -258,6 +263,8 @@ pub async fn run_eval(
         timestamp: chrono::Utc::now().to_rfc3339(),
         latency_ms,
         judge_latency_ms,
+        token_usage: if token_usage.input_tokens.is_some() || token_usage.output_tokens.is_some() { Some(token_usage) } else { None },
+        judge_token_usage,
         total_latency_ms,
     })
 }

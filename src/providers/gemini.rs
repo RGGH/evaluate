@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use crate::config::GeminiConfig;
 use crate::errors::{EvalError, Result};
-use crate::providers::LlmProvider;
+use crate::providers::{LlmProvider, TokenUsage};
 
 /// A provider for interacting with Google's Gemini models.
 pub struct GeminiProvider {
@@ -23,7 +23,7 @@ impl GeminiProvider {
 
 impl LlmProvider for GeminiProvider {
     /// Calls the Gemini API with a given prompt and returns the model's response text and latency.
-    async fn generate(&self, model: &str, prompt: &str) -> Result<(String, u64)> {
+    async fn generate(&self, model: &str, prompt: &str) -> Result<(String, u64, TokenUsage)> {
         let url = format!(
             "{}/v1beta/models/{}:generateContent",
             self.config.api_base.trim_end_matches('/'),
@@ -33,6 +33,13 @@ impl LlmProvider for GeminiProvider {
         println!("📡 Calling Gemini: {} with model: {}", url, model);
 
         let body = json!({
+            // Add safety settings to prevent content blocking
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+            ],
             "contents": [{"parts": [{"text": prompt}]}]
         });
 
@@ -68,6 +75,12 @@ impl LlmProvider for GeminiProvider {
             return Err(EvalError::ApiResponse(error.to_string()));
         }
 
+        let usage_metadata = response_json.get("usageMetadata");
+        let token_usage = TokenUsage {
+            input_tokens: usage_metadata.and_then(|m| m.get("promptTokenCount")).and_then(|t| t.as_u64()).map(|t| t as u32),
+            output_tokens: usage_metadata.and_then(|m| m.get("candidatesTokenCount")).and_then(|t| t.as_u64()).map(|t| t as u32),
+        };
+
         let output = response_json
             .get("candidates")
             .and_then(|c| c.get(0))
@@ -82,6 +95,6 @@ impl LlmProvider for GeminiProvider {
             return Err(EvalError::EmptyResponse);
         }
 
-        Ok((output.to_string(), latency_ms))
+        Ok((output.to_string(), latency_ms, token_usage))
     }
 }

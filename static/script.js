@@ -201,6 +201,21 @@ function displaySingleResult(data) {
         html += '</div>';
     }
 
+    // Add token usage information
+    if (result.token_usage || result.judge_token_usage) {
+        html += '<div class="result-section">';
+        html += '<h4>🪙 Token Usage</h4>';
+        html += '<pre>';
+        if (result.token_usage) {
+            html += `Model Tokens: ${result.token_usage.input_tokens || 'N/A'} (prompt) / ${result.token_usage.output_tokens || 'N/A'} (completion)\n`;
+        }
+        if (result.judge_token_usage) {
+            html += `Judge Tokens: ${result.judge_token_usage.input_tokens || 'N/A'} (prompt) / ${result.judge_token_usage.output_tokens || 'N/A'} (completion)`;
+        }
+        html += '</pre>';
+        html += '</div>';
+    }
+
     html += '<div class="result-section">';
     html += '<h4>Prompt</h4>';
     html += `<pre>${escapeHtml(result.prompt)}</pre>`;
@@ -531,6 +546,10 @@ function transformHistoryEntryToEvalResponse(historyEntry) {
                 verdict: historyEntry.judge_verdict, 
                 reasoning: historyEntry.judge_reasoning 
             } : null,
+            latency_ms: historyEntry.latency_ms,
+            judge_latency_ms: historyEntry.judge_latency_ms,
+            token_usage: (historyEntry.input_tokens !== null || historyEntry.output_tokens !== null) ? { input_tokens: historyEntry.input_tokens, output_tokens: historyEntry.output_tokens } : null,
+            judge_token_usage: (historyEntry.judge_input_tokens !== null || historyEntry.judge_output_tokens !== null) ? { input_tokens: historyEntry.judge_input_tokens, output_tokens: historyEntry.judge_output_tokens } : null,
         }
     };
 }
@@ -628,11 +647,11 @@ function updateSummaryMetrics(results) {
     const total = results.length;
     const passed = results.filter(r => r.judge_verdict === 'Pass').length;
     const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
-    const uniqueModels = new Set(results.map(r => r.model).filter(Boolean));
-    const latencies = results.map(r => r.total_latency_ms || 0).filter(l => l > 0);
+    const uniqueModels = new Set(results.map(r => r.model).filter(Boolean));    
+    const latencies = results.map(r => (r.latency_ms || 0) + (r.judge_latency_ms || 0)).filter(l => l > 0);
     const avgLatency = latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0;
-    const totalTokens = results.reduce((acc, r) => (r.prompt_tokens || 0) + (r.completion_tokens || 0) + acc, 0);
-
+    const totalTokens = results.reduce((acc, r) => (r.input_tokens || 0) + (r.output_tokens || 0) + (r.judge_input_tokens || 0) + (r.judge_output_tokens || 0) + acc, 0);
+    
     document.getElementById('summaryTotalCount').textContent = total;
     document.getElementById('summaryPassRate').textContent = `${passRate}%`;
     document.getElementById('summaryAvgLatency').textContent = avgLatency > 0 ? `${avgLatency}ms` : 'N/A';
@@ -649,8 +668,8 @@ function displaySummaryResultsTable(results) {
     const truncate = (str, length) => str && str.length > length ? str.substring(0, length) + '...' : str || 'N/A';
 
     const tableHTML = `
-        <table>
-            <thead><tr><th>Model</th><th>Prompt</th><th>Output</th><th>Verdict</th><th>Judge</th><th>Tokens (P/C)</th><th>Timestamp</th></tr></thead>
+        <table> 
+            <thead><tr><th>Model</th><th>Prompt</th><th>Output</th><th>Verdict</th><th>Judge</th><th>Tokens (M P/C)</th><th>Tokens (J P/C)</th><th>Timestamp</th></tr></thead>
             <tbody>
                 ${results.slice(0, 50).map(result => `
                     <tr>
@@ -659,7 +678,8 @@ function displaySummaryResultsTable(results) {
                         <td class="output-cell" title="${escapeHtml(result.model_output || '')}">${truncate(result.model_output, 50)}</td>
                         <td class="status-${getStatusClass(result.judge_verdict)}">${result.judge_verdict || 'N/A'}</td>
                         <td>${result.judge_model || 'N/A'}</td>
-                        <td>${result.prompt_tokens || 'N/A'} / ${result.completion_tokens || 'N/A'}</td>
+                        <td>${result.input_tokens || 'N/A'} / ${result.output_tokens || 'N/A'}</td>
+                        <td>${result.judge_input_tokens || 'N/A'} / ${result.judge_output_tokens || 'N/A'}</td>
                         <td>${new Date(result.created_at).toLocaleString()}</td>
                     </tr>
                 `).join('')}
@@ -723,10 +743,10 @@ function updateResultsStats() {
     const total = resultsHistoryData.length;
     const passed = resultsHistoryData.filter(e => e.judge_verdict === 'Pass').length;
     const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
-    const latencies = resultsHistoryData.map(e => e.total_latency_ms || 0).filter(l => l > 0);
+    const latencies = resultsHistoryData.map(e => (e.latency_ms || 0) + (e.judge_latency_ms || 0)).filter(l => l > 0);
     const avgLatency = latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0;
     const models = new Set(resultsHistoryData.map(e => e.model).filter(Boolean));
-    const totalTokens = resultsHistoryData.reduce((acc, e) => (e.prompt_tokens || 0) + (e.completion_tokens || 0) + acc, 0);
+    const totalTokens = resultsHistoryData.reduce((acc, e) => (e.input_tokens || 0) + (e.output_tokens || 0) + (e.judge_input_tokens || 0) + (e.judge_output_tokens || 0) + acc, 0);
     
     document.getElementById('totalEvals').textContent = total;
     document.getElementById('passRate').textContent = passRate + '%';
@@ -737,7 +757,8 @@ function updateResultsStats() {
 
 function updateResultsCharts() {
     const createOrUpdateChart = (chartId, type, data, options) => {
-        const ctx = document.getElementById(chartId).getContext('2d');
+        const ctx = document.getElementById(chartId)?.getContext('2d');
+        if (!ctx) return;
         if (resultsCharts[chartId]) resultsCharts[chartId].destroy();
         resultsCharts[chartId] = new Chart(ctx, { type, data, options });
     };
@@ -774,7 +795,7 @@ function updateResultsCharts() {
     createOrUpdateChart('latencyChart', 'line', {
         labels: recent.map((_, i) => i + 1),
         datasets: [{
-            label: 'Latency (ms)', data: recent.map(e => e.total_latency_ms || 0),
+            label: 'Latency (ms)', data: recent.map(e => (e.latency_ms || 0) + (e.judge_latency_ms || 0)),
             borderColor: '#ffc107', backgroundColor: 'rgba(255, 193, 7, 0.1)', tension: 0.4, fill: true
         }]
     }, { responsive: true, scales: { y: { beginAtZero: true } } });
@@ -793,16 +814,20 @@ function updateResultsCharts() {
     // Token Chart
     const tokensByModel = resultsHistoryData.reduce((acc, e) => {
         if (!e.model) return acc;
-        if (!acc[e.model]) acc[e.model] = { prompt: 0, completion: 0 };
-        acc[e.model].prompt += e.prompt_tokens || 0;
-        acc[e.model].completion += e.completion_tokens || 0;
+        if (!acc[e.model]) acc[e.model] = { prompt: 0, completion: 0, judge_prompt: 0, judge_completion: 0 };
+        acc[e.model].prompt += e.input_tokens || 0;
+        acc[e.model].completion += e.output_tokens || 0;
+        acc[e.model].judge_prompt += e.judge_input_tokens || 0;
+        acc[e.model].judge_completion += e.judge_output_tokens || 0;
         return acc;
     }, {});
     createOrUpdateChart('tokenChart', 'bar', {
         labels: Object.keys(tokensByModel),
         datasets: [
-            { label: 'Prompt Tokens', data: Object.values(tokensByModel).map(m => m.prompt), backgroundColor: '#4299e1' },
-            { label: 'Completion Tokens', data: Object.values(tokensByModel).map(m => m.completion), backgroundColor: '#ed8936' }
+            { label: 'Model Prompt Tokens', data: Object.values(tokensByModel).map(m => m.prompt), backgroundColor: '#4299e1' },
+            { label: 'Model Completion Tokens', data: Object.values(tokensByModel).map(m => m.completion), backgroundColor: '#ed8936' },
+            { label: 'Judge Prompt Tokens', data: Object.values(tokensByModel).map(m => m.judge_prompt), backgroundColor: '#667eea' },
+            { label: 'Judge Completion Tokens', data: Object.values(tokensByModel).map(m => m.judge_completion), backgroundColor: '#a0aec0' }
         ]
     }, { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } });
 }
@@ -811,38 +836,18 @@ function updateResultsTable() {
     const tbody = document.getElementById('resultsBody');
     if (!tbody) return;
     const recentData = resultsHistoryData.slice(-50).reverse();
-    if (recentData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No results yet.</td></tr>';
-        return;
-    }
     tbody.innerHTML = recentData.map(e => {
         const verdict = e.judge_verdict || 'ERROR';
         const badgeClass = `verdict-${(verdict).toLowerCase()}`;
+        const latency = (e.latency_ms || 0) + (e.judge_latency_ms || 0);
         return `
             <tr>
                 <td>${new Date(e.created_at).toLocaleString()}</td>
                 <td>${e.model || 'N/A'}</td>
                 <td title="${escapeHtml(e.prompt || '')}">${(e.prompt || '').substring(0, 50)}...</td>
                 <td><span class="verdict-badge ${badgeClass}">${verdict.toUpperCase()}</span></td>
-                <td>${e.total_latency_ms || 'N/A'}ms</td>
+                <td>${latency > 0 ? latency + 'ms' : 'N/A'}</td>
             </tr>
         `;
     }).join('');
-}
-
-function formatTimestamp(timestamp) {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now - date;
-    
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-    
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
-    
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
 }
