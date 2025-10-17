@@ -18,6 +18,9 @@ A lightweight, flexible evaluation 'eval' framework for testing models with auto
 - API endpoints for developers to consume
 - additional evaluation criteria option, eg. specify "exact match" or "semantic similarity"
 
+  ▶️ [Watch on YouTube](https://youtu.be/CyErTQbwiXA)
+
+
 ### 🐍 Python SDK Available
 
 If you want to use 'evaluate' via your own Python scripts or Jupyter Notebooks, you can use the SDK:
