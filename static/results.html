@@ -23,70 +23,73 @@
             <a href="/results.html" class="tab-btn active" style="text-decoration: none;">Results</a>
         </nav>
 
-        <h2>📊 Live Results Dashboard</h2>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-label">Total Evaluations</div>
-                <div class="stat-value" id="totalEvals">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Pass Rate</div>
-                <div class="stat-value" id="passRate">0%</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Avg Latency</div>
-                <div class="stat-value" id="avgLatency">0ms</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Active Models</div>
-                <div class="stat-value" id="activeModels">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Total Tokens</div>
-                <div class="stat-value" id="totalTokens">0</div>
-            </div>
-        </div>
-
-        <div class="charts-grid">
-            <div class="card">
-                <div class="chart-title">Pass/Fail Distribution</div>
-                <canvas id="verdictChart"></canvas>
-            </div>
-            <div class="card">
-                <div class="chart-title">Model Performance</div>
-                <canvas id="modelChart"></canvas>
-            </div>
-            <div class="card chart-card">
-                <div class="chart-title">Latency Trend (Last 20)</div>
-                <canvas id="latencyChart"></canvas>
-            </div>
-            <div class="card chart-card">
-                <div class="chart-title">Evaluations Over Time</div>
-                <canvas id="timelineChart"></canvas>
-            </div>
-            <div class="card chart-card">
-                <div class="chart-title">Token Usage by Model</div>
-                <canvas id="tokenChart"></canvas>
-            </div>
-        </div>
-
         <div class="card">
-            <div class="chart-title">Recent Evaluations</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Model</th>
-                        <th>Prompt</th>
-                        <th>Verdict</th>
-                        <th>Latency</th>
-                    </tr>
-                </thead>
-                <tbody id="resultsBody">
-                    <tr><td colspan="5" class="empty-state">Loading data...</td></tr>
-                </tbody>
-            </table>
+   
+
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Evaluations</div>
+                    <div class="stat-value" id="totalEvals">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Pass Rate</div>
+                    <div class="stat-value" id="passRate">0%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Latency</div>
+                    <div class="stat-value" id="avgLatency">0ms</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Models</div>
+                    <div class="stat-value" id="activeModels">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Tokens</div>
+                    <div class="stat-value" id="totalTokens">0</div>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="card">
+                    <div class="chart-title">Pass/Fail Distribution</div>
+                    <canvas id="verdictChart"></canvas>
+                </div>
+                <div class="card">
+                    <div class="chart-title">Model Performance</div>
+                    <canvas id="modelChart"></canvas>
+                </div>
+                <div class="card chart-card">
+                    <div class="chart-title">Latency Trend (Last 20)</div>
+                    <canvas id="latencyChart"></canvas>
+                </div>
+                <div class="card chart-card">
+                    <div class="chart-title">Evaluations Over Time</div>
+                    <canvas id="timelineChart"></canvas>
+                </div>
+                <div class="card chart-card">
+                    <div class="chart-title">Token Usage by Model</div>
+                    <canvas id="tokenChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="chart-title">Recent Evaluations</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Model</th>
+                            <th>Prompt</th>
+                            <th>Verdict</th>
+                            <th>Latency</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                        <tr><td colspan="5" class="empty-state">Loading data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 

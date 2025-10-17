@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="results.css">
     <title>Eval API - Model Evaluation Dashboard</title>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -17,8 +19,8 @@
             <button class="tab-btn active" data-tab="single">Run Evaluation</button>
             <button class="tab-btn" data-tab="batch">Batch Run</button>
             <button class="tab-btn" data-tab="history">History</button>
-            <a href="/summary.html" class="tab-btn" style="text-decoration: none;">Summary</a>
-            <a href="/results.html" class="tab-btn" style="text-decoration: none;">Results</a>
+            <button class="tab-btn" data-tab="summary">Summary</button>
+            <button class="tab-btn" data-tab="results">Results</button>
         </nav>
 
 
@@ -92,6 +94,102 @@
         </div>
     </div>
 
+    <!-- Summary Tab -->
+    <div id="summary-tab" class="tab-content">
+        <div class="card">
+            <div class="metrics">
+                <div class="metric-card">
+                    <div class="metric-label">Total Evaluations</div>
+                    <div class="metric-value" id="summaryTotalCount">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Pass Rate</div>
+                    <div class="metric-value" id="summaryPassRate">0%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Average Latency</div>
+                    <div class="metric-value" id="summaryAvgLatency">0ms</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Models Tested</div>
+                    <div class="metric-value" id="summaryModelCount">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Total Tokens Used</div>
+                    <div class="metric-value" id="summaryTotalTokens">0</div>
+                </div>
+            </div>
+            <div class="section">
+                <h2>Recent Evaluations</h2>
+                <div id="summaryResultsTable">
+                    <div class="loading">Loading evaluation results...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Tab -->
+    <div id="results-tab" class="tab-content">
+        <div class="card">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Evaluations</div>
+                    <div class="stat-value" id="totalEvals">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Pass Rate</div>
+                    <div class="stat-value" id="passRate">0%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Latency</div>
+                    <div class="stat-value" id="avgLatency">0ms</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Models</div>
+                    <div class="stat-value" id="activeModels">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Tokens</div>
+                    <div class="stat-value" id="totalTokens">0</div>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="card">
+                    <div class="chart-title">Pass/Fail Distribution</div>
+                    <canvas id="verdictChart"></canvas>
+                </div>
+                <div class="card">
+                    <div class="chart-title">Model Performance</div>
+                    <canvas id="modelChart"></canvas>
+                </div>
+                <div class="card chart-card">
+                    <div class="chart-title">Latency Trend (Last 20)</div>
+                    <canvas id="latencyChart"></canvas>
+                </div>
+                <div class="card chart-card">
+                    <div class="chart-title">Evaluations Over Time</div>
+                    <canvas id="timelineChart"></canvas>
+                </div>
+                <div class="card chart-card">
+                    <div class="chart-title">Token Usage by Model</div>
+                    <canvas id="tokenChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="chart-title">Recent Evaluations</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th><th>Model</th><th>Prompt</th><th>Verdict</th><th>Latency</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>

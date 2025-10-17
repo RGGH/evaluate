@@ -21,7 +21,7 @@
             <a href="/results.html" class="tab-btn" style="text-decoration: none;">Results</a>
         </nav>
 
-        <div class="metrics">
+        <div class="card">
             <div class="metric-card">
                 <div class="metric-label">Total Evaluations</div>
                 <div class="metric-value" id="totalCount">0</div>
@@ -38,12 +38,15 @@
                 <div class="metric-label">Models Tested</div>
                 <div class="metric-value" id="modelCount">0</div>
             </div>
-        </div>
-
-        <div class="section">
-            <h2>Recent Evaluations</h2>
-            <div id="resultsTable">
-                <div class="loading">Loading evaluation results...</div>
+            <div class="metric-card">
+                <div class="metric-label">Total Tokens Used</div>
+                <div class="metric-value" id="totalTokens">0</div>
+            </div>
+            <div class="section">
+                <h2>Recent Evaluations</h2>
+                <div id="resultsTable">
+                    <div class="loading">Loading evaluation results...</div>
+                </div>
             </div>
         </div>
     </div>
@@ -88,10 +91,17 @@
                 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) 
                 : 0;
 
+            const totalTokens = results.reduce((acc, r) => {
+                const prompt = r.prompt_tokens || 0;
+                const completion = r.completion_tokens || 0;
+                return acc + prompt + completion;
+            }, 0);
+
             document.getElementById('totalCount').textContent = total;
             document.getElementById('passRate').textContent = `${passRate}%`;
             document.getElementById('avgLatency').textContent = avgLatency > 0 ? `${avgLatency}ms` : 'N/A';
             document.getElementById('modelCount').textContent = uniqueModels.size;
+            document.getElementById('totalTokens').textContent = totalTokens.toLocaleString();
         }
 
         function displayResultsTable(results) {
@@ -104,6 +114,8 @@
                             <th>Output</th>
                             <th>Verdict</th>
                             <th>Judge</th>
+                            <th>Prompt Tokens</th>
+                            <th>Completion Tokens</th>
                             <th>Timestamp</th>
                         </tr>
                     </thead>
@@ -115,6 +127,8 @@
                                 <td class="output-cell" title="${escapeHtml(result.model_output || '')}">${truncate(result.model_output || 'N/A', 50)}</td>
                                 <td class="status-${getStatusClass(result.judge_verdict)}">${result.judge_verdict || 'N/A'}</td>
                                 <td>${result.judge_model || 'N/A'}</td>
+                                <td>${result.prompt_tokens || 'N/A'}</td>
+                                <td>${result.completion_tokens || 'N/A'}</td>
                                 <td>${formatTimestamp(result.created_at)}</td>
                             </tr>
                         `).join('')}
