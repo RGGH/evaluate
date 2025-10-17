@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦉 Results Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Eval API Dashboard</h1>
+            <p class="subtitle">Model Evaluation & Testing Platform</p>
+        </header>
+
+        <nav class="tab-nav">
+            <a href="/index.html" class="tab-btn" style="text-decoration: none;">Run Evaluation</a>
+            <a href="/index.html" class="tab-btn" style="text-decoration: none;">Batch Run</a>
+            <a href="/index.html" class="tab-btn" style="text-decoration: none;">History</a>
+            <a href="/summary.html" class="tab-btn active" style="text-decoration: none;">Summary</a>
+            <a href="/results.html" class="tab-btn" style="text-decoration: none;">Results</a>
+        </nav>
+
+        <div class="card">
+            <div class="metric-card">
+                <div class="metric-label">Total Evaluations</div>
+                <div class="metric-value" id="totalCount">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Pass Rate</div>
+                <div class="metric-value" id="passRate">0%</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Average Latency</div>
+                <div class="metric-value" id="avgLatency">0ms</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Models Tested</div>
+                <div class="metric-value" id="modelCount">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Total Tokens Used</div>
+                <div class="metric-value" id="totalTokens">0</div>
+            </div>
+            <div class="section">
+                <h2>Recent Evaluations</h2>
+                <div id="resultsTable">
+                    <div class="loading">Loading evaluation results...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8080/api/v1';
+
+        async function loadResults() {
+            try {
+                const response = await fetch(`${API_BASE}/evals/history`);
+                const data = await response.json();
+                
+                if (data.results && data.results.length > 0) {
+                    updateMetrics(data.results);
+                    displayResultsTable(data.results);
+                } else {
+                    showEmptyState();
+                }
+            } catch (error) {
+                console.error('Failed to load results:', error);
+                document.getElementById('resultsTable').innerHTML = 
+                    '<div class="empty-state"><div class="empty-state-icon">❌</div><p>Failed to load results</p></div>';
+            }
+        }
+
+        function updateMetrics(results) {
+            const total = results.length;
+            const passed = results.filter(r => r.judge_verdict === 'Pass').length;
+            const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+            
+            const uniqueModels = new Set(results.map(r => r.model).filter(Boolean));
+            
+            const latencies = results.map(r => {
+                if (r.model_output) {
+                    const match = r.model_output.match(/\((\d+)ms\)/);
+                    return match ? parseInt(match[1]) : 0;
+                }
+                return 0;
+            }).filter(l => l > 0);
+            
+            const avgLatency = latencies.length > 0 
+                ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) 
+                : 0;
+
+            const totalTokens = results.reduce((acc, r) => {
+                const prompt = r.prompt_tokens || 0;
+                const completion = r.completion_tokens || 0;
+                return acc + prompt + completion;
+            }, 0);
+
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('passRate').textContent = `${passRate}%`;
+            document.getElementById('avgLatency').textContent = avgLatency > 0 ? `${avgLatency}ms` : 'N/A';
+            document.getElementById('modelCount').textContent = uniqueModels.size;
+            document.getElementById('totalTokens').textContent = totalTokens.toLocaleString();
+        }
+
+        function displayResultsTable(results) {
+            const tableHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th>Prompt</th>
+                            <th>Output</th>
+                            <th>Verdict</th>
+                            <th>Judge</th>
+                            <th>Prompt Tokens</th>
+                            <th>Completion Tokens</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${results.slice(0, 50).map(result => `
+                            <tr>
+                                <td><strong>${result.model || 'N/A'}</strong></td>
+                                <td class="prompt-cell" title="${escapeHtml(result.prompt || '')}">${truncate(result.prompt || 'N/A', 60)}</td>
+                                <td class="output-cell" title="${escapeHtml(result.model_output || '')}">${truncate(result.model_output || 'N/A', 50)}</td>
+                                <td class="status-${getStatusClass(result.judge_verdict)}">${result.judge_verdict || 'N/A'}</td>
+                                <td>${result.judge_model || 'N/A'}</td>
+                                <td>${result.prompt_tokens || 'N/A'}</td>
+                                <td>${result.completion_tokens || 'N/A'}</td>
+                                <td>${formatTimestamp(result.created_at)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            document.getElementById('resultsTable').innerHTML = tableHTML;
+        }
+
+        function showEmptyState() {
+            document.getElementById('resultsTable').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📊</div>
+                    <p>No evaluation results yet. Run some evaluations to see results here!</p>
+                </div>
+            `;
+        }
+
+        function getStatusClass(verdict) {
+            if (!verdict) return 'error';
+            const lower = verdict.toLowerCase();
+            if (lower === 'pass') return 'pass';
+            if (lower === 'fail') return 'fail';
+            return 'error';
+        }
+
+        function truncate(str, length) {
+            if (!str) return 'N/A';
+            return str.length > length ? str.substring(0, length) + '...' : str;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatTimestamp(timestamp) {
+            try {
+                const date = new Date(timestamp);
+                return date.toLocaleString();
+            } catch {
+                return 'N/A';
+            }
+        }
+
+        // Load results on page load
+        loadResults();
+
+        // Auto-refresh every 10 seconds
+        setInterval(loadResults, 10000);
+    </script>
+</body>
+</html>

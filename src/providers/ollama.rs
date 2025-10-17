@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use crate::config::OllamaConfig;
 use crate::errors::{EvalError, Result};
-use crate::providers::LlmProvider;
+use crate::providers::{LlmProvider, TokenUsage};
 
 /// A provider for interacting with local Ollama models.
 pub struct OllamaProvider {
@@ -35,7 +35,7 @@ impl OllamaProvider {
 
 impl LlmProvider for OllamaProvider {
     /// Calls the Ollama API with a given prompt and returns the model's response text and latency.
-    async fn generate(&self, model: &str, prompt: &str) -> Result<(String, u64)> {
+    async fn generate(&self, model: &str, prompt: &str) -> Result<(String, u64, TokenUsage)> {
         let url = format!("{}/api/generate", self.config.api_base.trim_end_matches('/'));
 
         println!("📡 Calling Ollama: {} with model: {}", url, model);
@@ -71,6 +71,6 @@ impl LlmProvider for OllamaProvider {
             return Err(EvalError::EmptyResponse);
         }
 
-        Ok((ollama_resp.response, latency_ms))
+        Ok((ollama_resp.response, latency_ms, TokenUsage::default()))
     }
 }

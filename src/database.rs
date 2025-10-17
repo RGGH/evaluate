@@ -69,6 +69,12 @@ pub async fn save_evaluation(pool: &SqlitePool, response: &ApiResponse) -> Resul
         judge_verdict,
         judge_reasoning,
         error_message,
+        latency_ms,
+        judge_latency_ms,
+        input_tokens,
+        output_tokens,
+        judge_input_tokens,
+        judge_output_tokens,
         created_at,
     ) = match &response.result {
             EvalResult::Success(res) => (
@@ -80,27 +86,42 @@ pub async fn save_evaluation(pool: &SqlitePool, response: &ApiResponse) -> Resul
                 res.judge_result.as_ref().map(|j| j.verdict.to_string()),
                 res.judge_result.as_ref().map(|j| j.reasoning.clone()),
                 None,
+                // Model Latency & Tokens
+                Some(res.latency_ms as i64),
+                res.judge_latency_ms.map(|l| l as i64),
+                res.token_usage.as_ref().and_then(|u| u.input_tokens.map(|t| t as i64)),
+                res.token_usage.as_ref().and_then(|u| u.output_tokens.map(|t| t as i64)),
+                res.judge_token_usage.as_ref().and_then(|u| u.input_tokens.map(|t| t as i64)),
+                res.judge_token_usage.as_ref().and_then(|u| u.output_tokens.map(|t| t as i64)),
                 Some(res.timestamp.clone()),
             ),
             EvalResult::Error(err) => (
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
+                // All fields are None except error_message
+                // The order here must match the tuple declaration above
+                None, // model
+                None, // prompt
+                None, // model_output
+                None, // expected
+                None, // judge_model
+                None, // judge_verdict
+                None, // judge_reasoning
                 Some(err.message.clone()),
-                None,
+                None, // latency_ms
+                None, // judge_latency_ms
+                None, // input_tokens
+                None, // output_tokens
+                None, // judge_input_tokens
+                None, // judge_output_tokens
+                None, // created_at
             ),
         };
 
     let created_at_str = created_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
 
     sqlx::query(
-        r#"
-        INSERT INTO evaluations (id, status, model, prompt, model_output, expected, judge_model, judge_verdict, judge_reasoning, error_message, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        r#" 
+        INSERT INTO evaluations (id, status, model, prompt, model_output, expected, judge_model, judge_verdict, judge_reasoning, error_message, latency_ms, judge_latency_ms, input_tokens, output_tokens, judge_input_tokens, judge_output_tokens, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#
     )
     .bind(id)
@@ -113,6 +134,12 @@ pub async fn save_evaluation(pool: &SqlitePool, response: &ApiResponse) -> Resul
     .bind(&judge_verdict)
     .bind(&judge_reasoning)
     .bind(&error_message)
+    .bind(latency_ms)
+    .bind(judge_latency_ms)
+    .bind(input_tokens)
+    .bind(output_tokens)
+    .bind(judge_input_tokens)
+    .bind(judge_output_tokens)
     .bind(&created_at_str)
     .execute(pool)
     .await?;
@@ -123,7 +150,7 @@ pub async fn save_evaluation(pool: &SqlitePool, response: &ApiResponse) -> Resul
 pub async fn get_all_evaluations(pool: &SqlitePool) -> Result<Vec<HistoryEntry>, sqlx::Error> {
     let rows = sqlx::query(
         r#"
-        SELECT id, status, model, prompt, model_output, expected, judge_model, judge_verdict, judge_reasoning, error_message, created_at
+        SELECT id, status, model, prompt, model_output, expected, judge_model, judge_verdict, judge_reasoning, error_message, latency_ms, judge_latency_ms, input_tokens, output_tokens, judge_input_tokens, judge_output_tokens, created_at
         FROM evaluations
         ORDER BY created_at DESC
         "#
@@ -142,7 +169,13 @@ pub async fn get_all_evaluations(pool: &SqlitePool) -> Result<Vec<HistoryEntry>,
         judge_verdict: row.get(7),
         judge_reasoning: row.get(8),
         error_message: row.get(9),
-        created_at: row.get(10),
+        latency_ms: row.get(10),
+        judge_latency_ms: row.get(11),
+        input_tokens: row.get(12),
+        output_tokens: row.get(13),
+        judge_input_tokens: row.get(14),
+        judge_output_tokens: row.get(15),
+        created_at: row.get(16),
     }).collect())
 }
 
@@ -158,5 +191,11 @@ pub struct HistoryEntry {
     pub judge_verdict: Option<String>,
     pub judge_reasoning: Option<String>,
     pub error_message: Option<String>,
+    pub latency_ms: Option<i64>,
+    pub judge_latency_ms: Option<i64>,
+    pub input_tokens: Option<i64>,
+    pub output_tokens: Option<i64>,
+    pub judge_input_tokens: Option<i64>,
+    pub judge_output_tokens: Option<i64>,
     pub created_at: String,
 }

@@ -1,7 +1,7 @@
 // src/runner.rs
 use crate::config::{AppConfig, EvalConfig};
 use crate::errors::{EvalError, Result};
-use crate::providers::{anthropic::AnthropicProvider, gemini::GeminiProvider, ollama::OllamaProvider, openai::OpenAIProvider, LlmProvider};
+use crate::providers::{anthropic::AnthropicProvider, gemini::GeminiProvider, ollama::OllamaProvider, openai::OpenAIProvider, LlmProvider, TokenUsage};
 use futures::future;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
@@ -16,6 +16,8 @@ pub struct EvalResult {
     pub timestamp: String,
     pub latency_ms: u64,
     pub judge_latency_ms: Option<u64>,
+    pub token_usage: Option<TokenUsage>,
+    pub judge_token_usage: Option<TokenUsage>,
     pub total_latency_ms: u64,
 }
 
@@ -23,6 +25,7 @@ pub struct EvalResult {
 pub struct JudgeResult {
     pub judge_model: String,
     pub verdict: JudgeVerdict,
+    #[serde(rename = "reasoning")]
     pub reasoning: Option<String>,
     pub confidence: Option<f32>,
 }
@@ -119,7 +122,7 @@ async fn call_provider(
     provider_name: &str,
     model_name: &str,
     prompt: &str,
-) -> Result<(String, u64)> {
+) -> Result<(String, u64, TokenUsage)> {
     match provider_name {
         "anthropic" => {
             let anthropic_config = config.anthropic.as_ref()
@@ -168,23 +171,33 @@ pub async fn run_eval(
     
     println!("📝 Prompt: {}", rendered_eval.prompt);
     
-    let (model_output_str, latency_ms) = call_provider(
+    // --- MODIFIED LOGIC: Preserve ProviderNotFound Error ---
+    let (model_output_str, latency_ms, token_usage) = match call_provider(
         config,
         client,
         &provider_name,
         &model_name,
         &rendered_eval.prompt,
-    ).await.map_err(|e| {
-        eprintln!("❌ Model failed: {}", e);
-        EvalError::ModelFailure {
-            model: rendered_eval.model.clone(),
+    ).await {
+        Ok(result) => result,
+        Err(e @ EvalError::ProviderNotFound(_)) => {
+            eprintln!("❌ Provider not configured: {}", e);
+            return Err(e); // Propagate ProviderNotFound error directly
         }
-    })?;
+        Err(e) => {
+            eprintln!("❌ Model failed: {}", e);
+            return Err(EvalError::ModelFailure { // Wrap other API/Request errors as ModelFailure
+                model: rendered_eval.model.clone(),
+            });
+        }
+    };
+    // --- END MODIFIED LOGIC ---
 
     println!("\n✅ Model Output ({}ms):\n{}\n", latency_ms, &model_output_str);
 
     // Step 2: Run judge evaluation if expected output provided
     let mut judge_latency_ms = None;
+    let mut judge_token_usage = None;
     let judge_result = if let (Some(expected), Some(judge_model)) =
         (&rendered_eval.expected, &rendered_eval.judge_model) {
         
@@ -207,8 +220,9 @@ pub async fn run_eval(
         ).await;
 
         match judge_result {
-            Ok((judge_response, judge_latency)) => {
+            Ok((judge_response, judge_latency, tokens)) => {
                 judge_latency_ms = Some(judge_latency);
+                judge_token_usage = Some(tokens);
                 println!("\n⚖️  Judge Response ({}ms):\n{}\n", judge_latency, &judge_response);
                 
                 let mut result = parse_judge_response(&judge_response);
@@ -249,6 +263,8 @@ pub async fn run_eval(
         timestamp: chrono::Utc::now().to_rfc3339(),
         latency_ms,
         judge_latency_ms,
+        token_usage: if token_usage.input_tokens.is_some() || token_usage.output_tokens.is_some() { Some(token_usage) } else { None },
+        judge_token_usage,
         total_latency_ms,
     })
 }
@@ -273,4 +289,31 @@ pub async fn run_batch_evals(
     println!("\n📊 Batch of {} completed concurrently in {}ms", total_evals, batch_total_ms);
 
     results
+}
+
+#[cfg(test)]
+mod tests {
+// ... (tests remain the same)
+    use super::*;
+
+    #[test]
+    fn test_parse_model_string_with_provider() {
+        let (provider, model) = parse_model_string("anthropic:claude-sonnet-4");
+        assert_eq!(provider, "anthropic");
+        assert_eq!(model, "claude-sonnet-4");
+    }
+
+    #[test]
+    fn test_parse_model_string_default_provider() {
+        let (provider, model) = parse_model_string("gemini-1.5-flash");
+        assert_eq!(provider, "gemini");
+        assert_eq!(model, "gemini-1.5-flash");
+    }
+
+    #[test]
+    fn test_judge_verdict_display() {
+        assert_eq!(JudgeVerdict::Pass.to_string(), "Pass");
+        assert_eq!(JudgeVerdict::Fail.to_string(), "Fail");
+        assert_eq!(JudgeVerdict::Uncertain.to_string(), "Uncertain");
+    }
 }

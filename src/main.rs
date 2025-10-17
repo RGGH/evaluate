@@ -33,7 +33,7 @@ async fn main() -> std::io::Result<()> {
         Err(_) => eprintln!("❌ DATABASE_URL not set!"),
     }
     
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info,actix_web=warn"));
     
     let app_config = config::AppConfig::from_env()
         .expect("Failed to load app configuration from environment");
@@ -43,7 +43,6 @@ async fn main() -> std::io::Result<()> {
     
     println!("🚀 Starting server...");
     println!("📊 Frontend available at http://127.0.0.1:8080");
-    println!("📈 Results dashboard at http://127.0.0.1:8080/results.html");
     println!("🔌 WebSocket endpoint at ws://127.0.0.1:8080/api/v1/ws");
 
     HttpServer::new(move || {

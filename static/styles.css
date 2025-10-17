@@ -42,6 +42,7 @@ header h1 {
     gap: 10px;
     margin-bottom: 30px;
     border-bottom: 2px solid silver;
+    margin-bottom: 30px;
 }
 
 .tab-btn {
@@ -57,6 +58,7 @@ header h1 {
     position: relative;
     bottom: -2px;
 }
+.tab-nav a { text-decoration: none; }
 
 .tab-btn:hover {
     background: rgba(192, 192, 192, 0.1);

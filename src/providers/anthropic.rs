@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use crate::config::AnthropicConfig;
 use crate::errors::{EvalError, Result};
-use crate::providers::LlmProvider;
+use crate::providers::{LlmProvider, TokenUsage};
 
 /// A provider for interacting with Anthropic Claude models.
 pub struct AnthropicProvider {
@@ -32,6 +32,7 @@ struct Message<'a> {
 #[derive(Deserialize)]
 struct AnthropicResponse {
     content: Vec<ContentBlock>,
+    usage: ApiUsage,
 }
 
 #[derive(Deserialize)]
@@ -39,6 +40,12 @@ struct ContentBlock {
     #[serde(rename = "type")]
     content_type: String,
     text: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ApiUsage {
+    input_tokens: u32,
+    output_tokens: u32,
 }
 
 impl AnthropicProvider {
@@ -50,7 +57,7 @@ impl AnthropicProvider {
 
 impl LlmProvider for AnthropicProvider {
     /// Calls the Anthropic API with a given prompt and returns the model's response text and latency.
-    async fn generate(&self, model: &str, prompt: &str) -> Result<(String, u64)> {
+    async fn generate(&self, model: &str, prompt: &str) -> Result<(String, u64, TokenUsage)> {
         let url = format!("{}/v1/messages", self.config.api_base.trim_end_matches('/'));
 
         println!("📡 Calling Anthropic: {} with model: {}", url, model);
@@ -94,6 +101,11 @@ impl LlmProvider for AnthropicProvider {
         }
 
         let anthropic_resp: AnthropicResponse = resp.json().await?;
+
+        let token_usage = TokenUsage {
+            input_tokens: Some(anthropic_resp.usage.input_tokens),
+            output_tokens: Some(anthropic_resp.usage.output_tokens),
+        };
         
         let output = anthropic_resp
             .content
@@ -106,6 +118,6 @@ impl LlmProvider for AnthropicProvider {
             return Err(EvalError::EmptyResponse);
         }
 
-        Ok((output.to_string(), latency_ms))
+        Ok((output.to_string(), latency_ms, token_usage))
     }
 }

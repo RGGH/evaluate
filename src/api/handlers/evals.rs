@@ -1,4 +1,4 @@
-// src/api/handlers/evals.rs - Add WebSocket broadcasting
+// src/api/handlers/evals.rs - Fixed to save ALL evaluations to database
 use actix_web::{web, HttpResponse, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -6,6 +6,7 @@ use crate::api::AppState;
 use crate::api::handlers::ws::{WsBroker, EvalUpdate};
 use crate::config::EvalConfig;
 use crate::runner;
+use crate::errors::EvalError;
 use serde_json::json;
 
 #[derive(Clone, Deserialize)]
@@ -83,15 +84,23 @@ pub async fn run_eval(
                 error: None,
             };
 
+            // Save to database
             if let Some(pool) = state.db_pool.as_ref() {
+                println!("💾 Saving successful evaluation to database: {}", eval_id);
                 let api_response = crate::models::ApiResponse {
-                    id: eval_id,
+                    id: eval_id.clone(),
                     status: status.to_string(),
                     result: crate::models::EvalResult::Success(result),
                 };
-                if let Err(e) = crate::database::save_evaluation(pool, &api_response).await {
-                    log::error!("Failed to save evaluation to database: {}", e);
+                match crate::database::save_evaluation(pool, &api_response).await {
+                    Ok(_) => println!("✅ Successfully saved evaluation {} to database", eval_id),
+                    Err(e) => {
+                        eprintln!("❌ Failed to save evaluation to database: {}", e);
+                        log::error!("Database save error: {:?}", e);
+                    }
                 }
+            } else {
+                eprintln!("⚠️  Database pool is None - evaluation not saved!");
             }
 
             Ok(HttpResponse::Ok().json(response))
@@ -99,21 +108,53 @@ pub async fn run_eval(
         Err(e) => {
             let error_string = e.to_string();
             
+            let status_code = match &e {
+                EvalError::ProviderNotFound(_) | EvalError::Config(_) => 400,
+                EvalError::ModelFailure { .. } => 400,
+                _ => 500,
+            };
+
             // Broadcast error via WebSocket
             broker.broadcast(EvalUpdate {
                 id: eval_id.clone(),
                 status: "error".to_string(),
-                model: Some(req_body.model),
+                model: Some(req_body.model.clone()),
                 verdict: None,
                 latency_ms: None,
             }).await;
 
-            Ok(HttpResponse::InternalServerError().json(EvalResponse {
-                id: eval_id,
+            let response = EvalResponse {
+                id: eval_id.clone(),
                 status: "error".to_string(),
                 result: None,
-                error: Some(error_string),
-            }))
+                error: Some(error_string.clone()),
+            };
+
+            // ✅ FIX: Save error to database too!
+            if let Some(pool) = state.db_pool.as_ref() {
+                println!("💾 Saving error evaluation to database: {}", eval_id);
+                let api_response = crate::models::ApiResponse {
+                    id: eval_id.clone(),
+                    status: "error".to_string(),
+                    result: crate::models::EvalResult::Error(crate::models::ApiError {
+                        message: error_string.clone(),
+                    }),
+                };
+                match crate::database::save_evaluation(pool, &api_response).await {
+                    Ok(_) => println!("✅ Successfully saved error evaluation {} to database", eval_id),
+                    Err(e) => {
+                        eprintln!("❌ Failed to save error evaluation to database: {}", e);
+                        log::error!("Database save error: {:?}", e);
+                    }
+                }
+            } else {
+                eprintln!("⚠️  Database pool is None - error evaluation not saved!");
+            }
+
+            match status_code {
+                400 => Ok(HttpResponse::BadRequest().json(response)),
+                _ => Ok(HttpResponse::InternalServerError().json(response)),
+            }
         }
     }
 }
@@ -170,7 +211,6 @@ pub async fn run_batch(
                     "completed"
                 };
 
-                // Broadcast each eval result via WebSocket
                 broker.broadcast(EvalUpdate {
                     id: eval_id.clone(),
                     status: status.to_string(),
@@ -200,6 +240,7 @@ pub async fn run_batch(
             }
             Err(e) => {
                 failed += 1;
+                let error_string = e.to_string();
                 
                 broker.broadcast(EvalUpdate {
                     id: eval_id.clone(),
@@ -209,12 +250,28 @@ pub async fn run_batch(
                     latency_ms: None,
                 }).await;
 
-                responses.push(EvalResponse {
-                    id: eval_id,
+                let response = EvalResponse {
+                    id: eval_id.clone(),
                     status: "error".to_string(),
                     result: None,
-                    error: Some(e.to_string()),
-                });
+                    error: Some(error_string.clone()),
+                };
+
+                // ✅ FIX: Save batch errors to database too!
+                if let Some(pool) = state.db_pool.as_ref() {
+                    let api_response = crate::models::ApiResponse {
+                        id: eval_id,
+                        status: "error".to_string(),
+                        result: crate::models::EvalResult::Error(crate::models::ApiError {
+                            message: error_string,
+                        }),
+                    };
+                    if let Err(e) = crate::database::save_evaluation(pool, &api_response).await {
+                        log::error!("Failed to save batch error to database: {}", e);
+                    }
+                }
+
+                responses.push(response);
             }
         }
     }
