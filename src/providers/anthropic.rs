@@ -77,8 +77,9 @@ impl LlmProvider for AnthropicProvider {
         let resp = self
             .client
             .post(&url)
-            .header("x-api-key", &self.config.api_key)
-            .header("anthropic-version", "2023-06-01")
+            // .header("x-api-key", &self.config.api_key)
+            // .header("anthropic-version", "2023-06-01")
+            .header("Authorization", &format!("Bearer {}", &self.config.api_key))
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
