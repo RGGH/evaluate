@@ -15,7 +15,8 @@ A lightweight, flexible evaluation 'eval' framework for testing models with auto
 - Sqlite database for saving history
 - Specify LLM provider for LLM and Judge
 - batch evals to multiple providers/models
-- API endpoints
+- API endpoints for developers to consume
+- additional criteria match eg, specify "exact match" or "semantic similarity"
 
 ### 🐍 Python SDK Available
 
@@ -223,10 +224,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/evals/run \
 You can set the provider in the json file and use a generic syntax for batch evals
 
 ```json
-    "model": "gemini:gemini-1.5-flash-latest",
+    "model": "gemini:gemini-2.5-flash-latest",
     "prompt": "What is the capital of France?",
     "expected": "Paris",
-    "judge_model": "gemini:gemini-1.5-pro-latest"
+    "judge_model": "gemini:gemini-2.5-pro-latest"
  ```   
 
 Call the endpoint ```api/v1/evals/batch``` and supply a modified/synthetic 'qa_sameple.json' file, or your own .json file
@@ -298,7 +299,7 @@ Base URL: `http://localhost:8080/api/v1`
 
 ```json
 {
-  "model": "gemini:gemini-1.5-flash-latest",
+  "model": "gemini:gemini-2.5-flash-latest",
   "prompt": "What is 2+2?",
   "expected": "4",
   "judge_model": "gemini:gemini-1.5-pro-latest",
@@ -320,7 +321,7 @@ Base URL: `http://localhost:8080/api/v1`
   "model": "openai:gpt-4o",
   "prompt": "Explain quantum computing",
   "expected": "Quantum computing uses quantum bits...",
-  "judge_model": "gemini:gemini-1.5-pro-latest",
+  "judge_model": "gemini:gemini-2.5-pro-latest",
   "criteria": "The explanation should be accurate and accessible",
   "tags": ["physics", "computing"],
   "metadata": {
@@ -346,12 +347,12 @@ Base URL: `http://localhost:8080/api/v1`
   "id": "uuid-string",
   "status": "passed",
   "result": {
-    "model": "gemini:gemini-1.5-flash-latest",
+    "model": "gemini:gemini-2.5-flash-latest",
     "prompt": "What is 2+2?",
     "model_output": "2+2 equals 4",
     "expected": "4",
     "judge_result": {
-      "judge_model": "gemini:gemini-1.5-pro-latest",
+      "judge_model": "gemini:gemini-2.5-pro-latest",
       "verdict": "Pass",
       "reasoning": "The output correctly identifies that 2+2 equals 4...",
       "confidence": null
@@ -395,11 +396,11 @@ Base URL: `http://localhost:8080/api/v1`
     {
       "id": "uuid-string",
       "status": "passed",
-      "model": "gemini:gemini-1.5-flash-latest",
+      "model": "gemini:gemini-2.5-flash-latest",
       "prompt": "What is 2+2?",
       "model_output": "4",
       "expected": "4",
-      "judge_model": "gemini:gemini-1.5-pro-latest",
+      "judge_model": "gemini:gemini-2.5-pro-latest",
       "judge_verdict": "Pass",
       "judge_reasoning": "Correct answer",
       "error_message": null,
@@ -451,8 +452,8 @@ Base URL: `http://localhost:8080/api/v1`
 Models are specified in the format `provider:model_name`:
 
 **Supported Providers:**
-- `gemini:gemini-1.5-flash-latest`
-- `gemini:gemini-1.5-pro-latest`
+- `gemini:gemini-2.5-flash-latest`
+- `gemini:gemini-2.5-pro-latest`
 - `ollama:llama3`
 - `ollama:gemma`
 - `openai:gpt-4o`
