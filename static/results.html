@@ -11,12 +11,19 @@
 <body>
     <div class="container">
         <header>
-            <h1>📊 Evaluation Dashboard</h1>
-            <div class="status">
-                <div class="status-indicator"></div>
-                <span class="status-text">Live Updates Active</span>
-            </div>
+            <h1>Eval API Dashboard</h1>
+            <p class="subtitle">Model Evaluation & Testing Platform</p>
         </header>
+
+        <nav class="tab-nav">
+            <a href="/index.html" class="tab-btn" style="text-decoration: none;">Run Evaluation</a>
+            <a href="/index.html" class="tab-btn" style="text-decoration: none;">Batch Run</a>
+            <a href="/index.html" class="tab-btn" style="text-decoration: none;">History</a>
+            <a href="/summary.html" class="tab-btn" style="text-decoration: none;">Summary</a>
+            <a href="/results.html" class="tab-btn active" style="text-decoration: none;">Results</a>
+        </nav>
+
+        <h2>📊 Live Results Dashboard</h2>
 
         <div class="stats-grid">
             <div class="stat-card">
@@ -34,6 +41,10 @@
             <div class="stat-card">
                 <div class="stat-label">Active Models</div>
                 <div class="stat-value" id="activeModels">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Tokens</div>
+                <div class="stat-value" id="totalTokens">0</div>
             </div>
         </div>
 
@@ -53,6 +64,10 @@
             <div class="card chart-card">
                 <div class="chart-title">Evaluations Over Time</div>
                 <canvas id="timelineChart"></canvas>
+            </div>
+            <div class="card chart-card">
+                <div class="chart-title">Token Usage by Model</div>
+                <canvas id="tokenChart"></canvas>
             </div>
         </div>
 
@@ -131,11 +146,17 @@
                 : 0;
             
             const models = new Set(historyData.map(e => e.model).filter(Boolean));
+            const totalTokens = historyData.reduce((acc, e) => {
+                const prompt = e.prompt_tokens || 0;
+                const completion = e.completion_tokens || 0;
+                return acc + prompt + completion;
+            }, 0);
             
             document.getElementById('totalEvals').textContent = total;
             document.getElementById('passRate').textContent = passRate + '%';
             document.getElementById('avgLatency').textContent = avgLatency + 'ms';
             document.getElementById('activeModels').textContent = models.size;
+            document.getElementById('totalTokens').textContent = totalTokens.toLocaleString();
         }
 
         function updateCharts() {
@@ -143,6 +164,7 @@
             updateModelChart();
             updateLatencyChart();
             updateTimelineChart();
+            updateTokenChart();
         }
 
         function updateVerdictChart() {
@@ -261,6 +283,42 @@
                 options: {
                     responsive: true,
                     scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        function updateTokenChart() {
+            const tokensByModel = historyData.reduce((acc, e) => {
+                if (!e.model) return acc;
+                if (!acc[e.model]) acc[e.model] = { prompt: 0, completion: 0 };
+                acc[e.model].prompt += e.prompt_tokens || 0;
+                acc[e.model].completion += e.completion_tokens || 0;
+                return acc;
+            }, {});
+
+            const ctx = document.getElementById('tokenChart').getContext('2d');
+            if (charts.token) charts.token.destroy();
+
+            charts.token = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(tokensByModel),
+                    datasets: [
+                        {
+                            label: 'Prompt Tokens',
+                            data: Object.values(tokensByModel).map(m => m.prompt),
+                            backgroundColor: '#4299e1' // blue
+                        },
+                        {
+                            label: 'Completion Tokens',
+                            data: Object.values(tokensByModel).map(m => m.completion),
+                            backgroundColor: '#ed8936' // orange
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
                 }
             });
         }

@@ -168,18 +168,27 @@ pub async fn run_eval(
     
     println!("📝 Prompt: {}", rendered_eval.prompt);
     
-    let (model_output_str, latency_ms) = call_provider(
+    // --- MODIFIED LOGIC: Preserve ProviderNotFound Error ---
+    let (model_output_str, latency_ms) = match call_provider(
         config,
         client,
         &provider_name,
         &model_name,
         &rendered_eval.prompt,
-    ).await.map_err(|e| {
-        eprintln!("❌ Model failed: {}", e);
-        EvalError::ModelFailure {
-            model: rendered_eval.model.clone(),
+    ).await {
+        Ok(result) => result,
+        Err(e @ EvalError::ProviderNotFound(_)) => {
+            eprintln!("❌ Provider not configured: {}", e);
+            return Err(e); // Propagate ProviderNotFound error directly
         }
-    })?;
+        Err(e) => {
+            eprintln!("❌ Model failed: {}", e);
+            return Err(EvalError::ModelFailure { // Wrap other API/Request errors as ModelFailure
+                model: rendered_eval.model.clone(),
+            });
+        }
+    };
+    // --- END MODIFIED LOGIC ---
 
     println!("\n✅ Model Output ({}ms):\n{}\n", latency_ms, &model_output_str);
 
@@ -273,4 +282,31 @@ pub async fn run_batch_evals(
     println!("\n📊 Batch of {} completed concurrently in {}ms", total_evals, batch_total_ms);
 
     results
+}
+
+#[cfg(test)]
+mod tests {
+// ... (tests remain the same)
+    use super::*;
+
+    #[test]
+    fn test_parse_model_string_with_provider() {
+        let (provider, model) = parse_model_string("anthropic:claude-sonnet-4");
+        assert_eq!(provider, "anthropic");
+        assert_eq!(model, "claude-sonnet-4");
+    }
+
+    #[test]
+    fn test_parse_model_string_default_provider() {
+        let (provider, model) = parse_model_string("gemini-1.5-flash");
+        assert_eq!(provider, "gemini");
+        assert_eq!(model, "gemini-1.5-flash");
+    }
+
+    #[test]
+    fn test_judge_verdict_display() {
+        assert_eq!(JudgeVerdict::Pass.to_string(), "Pass");
+        assert_eq!(JudgeVerdict::Fail.to_string(), "Fail");
+        assert_eq!(JudgeVerdict::Uncertain.to_string(), "Uncertain");
+    }
 }

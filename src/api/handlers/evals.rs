@@ -6,6 +6,7 @@ use crate::api::AppState;
 use crate::api::handlers::ws::{WsBroker, EvalUpdate};
 use crate::config::EvalConfig;
 use crate::runner;
+use crate::errors::EvalError; // <--- ADDED: Import EvalError
 use serde_json::json;
 
 #[derive(Clone, Deserialize)]
@@ -99,6 +100,15 @@ pub async fn run_eval(
         Err(e) => {
             let error_string = e.to_string();
             
+            // --- MODIFIED LOGIC: Map specific EvalErrors to 400 Bad Request ---
+            let status_code = match &e {
+                EvalError::ProviderNotFound(_) | EvalError::Config(_) => 400,
+                // Treat ModelFailure as a 400 if it's likely due to bad configuration or API key.
+                // We trust the runner to only return ModelFailure if it couldn't be run.
+                EvalError::ModelFailure { .. } => 400,
+                _ => 500, // True internal server errors
+            };
+
             // Broadcast error via WebSocket
             broker.broadcast(EvalUpdate {
                 id: eval_id.clone(),
@@ -108,17 +118,24 @@ pub async fn run_eval(
                 latency_ms: None,
             }).await;
 
-            Ok(HttpResponse::InternalServerError().json(EvalResponse {
+            let response = EvalResponse {
                 id: eval_id,
                 status: "error".to_string(),
                 result: None,
                 error: Some(error_string),
-            }))
+            };
+
+            match status_code {
+                400 => Ok(HttpResponse::BadRequest().json(response)),
+                _ => Ok(HttpResponse::InternalServerError().json(response)),
+            }
+            // --- END MODIFIED LOGIC ---
         }
     }
 }
 
 pub async fn run_batch(
+// ... (rest of run_batch function remains the same, as it deals with Vec<Result<EvalResult>>)
     state: web::Data<AppState>,
     broker: web::Data<WsBroker>,
     eval_configs: web::Json<Vec<EvalConfig>>,
