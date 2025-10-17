@@ -16,7 +16,7 @@ A lightweight, flexible evaluation 'eval' framework for testing models with auto
 - Specify LLM provider for LLM and Judge
 - batch evals to multiple providers/models
 - API endpoints for developers to consume
-- additional criteria match eg, specify "exact match" or "semantic similarity"
+- additional evaluation criteria option, eg. specify "exact match" or "semantic similarity"
 
 ### 🐍 Python SDK Available
 
