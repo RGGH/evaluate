@@ -251,9 +251,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/evals/batch \
 
 # Built in Results Dashboard
 
-<img width="1225" height="921" alt="Screenshot from 2025-10-15 13-01-10" src="https://github.com/user-attachments/assets/ab887445-e816-42f3-96c5-96f356a8f98c" />
+<img width="989" height="923" alt="Screenshot from 2025-10-17 17-17-04" src="https://github.com/user-attachments/assets/5ac129d3-5696-4f97-8506-25d89e4d1353" />
 
-<img width="1225" height="921" alt="Screenshot from 2025-10-15 13-01-25" src="https://github.com/user-attachments/assets/fcdd4516-ac83-41f8-95bd-c34626491e63" />
+<img width="989" height="923" alt="Screenshot from 2025-10-17 17-17-12" src="https://github.com/user-attachments/assets/29102426-8c7c-43da-9dbe-983cbda32bfd" />
+
 
 # API Endpoints
 
