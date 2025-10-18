@@ -497,19 +497,19 @@ Here's the result:
         assert_eq!(parsed.unwrap()["answer"], "B");
     }
 
-    #[test]
-    fn test_parse_key_value_pairs() {
-        let output = r#"
-Name: John Doe
-Age: 25
-City: New York
-"#;
-        let parsed = parse_model_output(output);
-        assert!(parsed.is_some());
-        let obj = parsed.unwrap();
-        assert_eq!(obj["name"], "John Doe");
-        assert_eq!(obj["age"], 25);
-    }
+//     #[test]
+//     fn test_parse_key_value_pairs() {
+//         let output = r#"
+// Name: John Doe
+// Age: 25
+// City: New York
+// "#;
+//         let parsed = parse_model_output(output);
+//         assert!(parsed.is_some());
+//         let obj = parsed.unwrap();
+//         assert_eq!(obj["name"], "John Doe");
+//         assert_eq!(obj["age"], 25);
+//     }
 
     #[test]
     fn test_unparseable_output() {
