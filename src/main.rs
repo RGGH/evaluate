@@ -19,19 +19,29 @@ use std::borrow::Cow;
 #[folder = "static/"]
 struct StaticAssets;
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    banner::print_banner();
-
-    if let Err(e) = dotenv::dotenv() {
-        eprintln!("⚠️  Warning: Could not load .env file: {}", e);
-        eprintln!("   Make sure DATABASE_URL is set in your environment");
+/// Load environment variables with .env file taking priority over system env vars
+fn load_env_with_priority() {
+    // Load from .env file with override
+    match dotenvy::from_filename_override(".env") {
+        Ok(_) => println!("✅ Loaded .env file (overriding system environment variables)"),
+        Err(e) => {
+            eprintln!("⚠️  Warning: Could not load .env file: {}", e);
+            eprintln!("   Using system environment variables only");
+        }
     }
     
+    // Verify critical env vars
     match std::env::var("DATABASE_URL") {
         Ok(url) => println!("✅ DATABASE_URL set to: {}", url),
         Err(_) => eprintln!("❌ DATABASE_URL not set!"),
     }
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    banner::print_banner();
+
+    load_env_with_priority();
     
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info,actix_web=warn"));
     
