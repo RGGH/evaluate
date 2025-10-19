@@ -199,3 +199,158 @@ pub struct HistoryEntry {
     pub judge_output_tokens: Option<i64>,
     pub created_at: String,
 }
+
+// Add these to src/database.rs after the HistoryEntry struct
+
+#[derive(serde::Serialize, Clone)]
+pub struct JudgePrompt {
+    pub version: i64,
+    pub name: String,
+    pub template: String,
+    pub description: Option<String>,
+    pub is_active: bool,
+    pub created_at: String,
+}
+
+/// Get all judge prompt versions
+pub async fn get_all_judge_prompts(pool: &SqlitePool) -> Result<Vec<JudgePrompt>, sqlx::Error> {
+    let rows = sqlx::query(
+        r#"
+        SELECT version, name, template, description, is_active, created_at
+        FROM judge_prompts
+        ORDER BY version DESC
+        "#
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows.into_iter().map(|row| JudgePrompt {
+        version: row.get(0),
+        name: row.get(1),
+        template: row.get(2),
+        description: row.get(3),
+        is_active: row.get(4),
+        created_at: row.get(5),
+    }).collect())
+}
+
+/// Get the currently active judge prompt
+pub async fn get_active_judge_prompt(pool: &SqlitePool) -> Result<JudgePrompt, sqlx::Error> {
+    let row = sqlx::query(
+        r#"
+        SELECT version, name, template, description, is_active, created_at
+        FROM judge_prompts
+        WHERE is_active = TRUE
+        LIMIT 1
+        "#
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(JudgePrompt {
+        version: row.get(0),
+        name: row.get(1),
+        template: row.get(2),
+        description: row.get(3),
+        is_active: row.get(4),
+        created_at: row.get(5),
+    })
+}
+
+/// Get a specific judge prompt by version
+pub async fn get_judge_prompt_by_version(pool: &SqlitePool, version: i64) -> Result<JudgePrompt, sqlx::Error> {
+    let row = sqlx::query(
+        r#"
+        SELECT version, name, template, description, is_active, created_at
+        FROM judge_prompts
+        WHERE version = ?
+        "#
+    )
+    .bind(version)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(JudgePrompt {
+        version: row.get(0),
+        name: row.get(1),
+        template: row.get(2),
+        description: row.get(3),
+        is_active: row.get(4),
+        created_at: row.get(5),
+    })
+}
+
+/// Create a new judge prompt version
+pub async fn create_judge_prompt(
+    pool: &SqlitePool,
+    name: String,
+    template: String,
+    description: Option<String>,
+    set_active: bool,
+) -> Result<JudgePrompt, sqlx::Error> {
+    let created_at = chrono::Utc::now().to_rfc3339();
+    
+    // Start a transaction
+    let mut tx = pool.begin().await?;
+    
+    // If set_active is true, deactivate all other prompts
+    if set_active {
+        sqlx::query("UPDATE judge_prompts SET is_active = FALSE")
+            .execute(&mut *tx)
+            .await?;
+    }
+    
+    // Insert the new prompt
+    let result = sqlx::query(
+        r#"
+        INSERT INTO judge_prompts (name, template, description, is_active, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        RETURNING version, name, template, description, is_active, created_at
+        "#
+    )
+    .bind(&name)
+    .bind(&template)
+    .bind(&description)
+    .bind(set_active)
+    .bind(&created_at)
+    .fetch_one(&mut *tx)
+    .await?;
+    
+    // Commit the transaction
+    tx.commit().await?;
+    
+    Ok(JudgePrompt {
+        version: result.get(0),
+        name: result.get(1),
+        template: result.get(2),
+        description: result.get(3),
+        is_active: result.get(4),
+        created_at: result.get(5),
+    })
+}
+
+/// Set a judge prompt version as active
+pub async fn set_active_judge_prompt(pool: &SqlitePool, version: i64) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    
+    // Verify the version exists
+    sqlx::query("SELECT version FROM judge_prompts WHERE version = ?")
+        .bind(version)
+        .fetch_one(&mut *tx)
+        .await?;
+    
+    // Deactivate all prompts
+    sqlx::query("UPDATE judge_prompts SET is_active = FALSE")
+        .execute(&mut *tx)
+        .await?;
+    
+    // Activate the specified version
+    sqlx::query("UPDATE judge_prompts SET is_active = TRUE WHERE version = ?")
+        .bind(version)
+        .execute(&mut *tx)
+        .await?;
+    
+    tx.commit().await?;
+    
+    Ok(())
+}

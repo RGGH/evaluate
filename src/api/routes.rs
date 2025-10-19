@@ -21,5 +21,13 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
                     .route("", web::post().to(handlers::create_experiment))
                     .route("/{id}", web::get().to(handlers::get_experiment))
             )
+            .service(
+                web::scope("/judge-prompts")
+                    .route("", web::get().to(handlers::get_all_judge_prompts))
+                    .route("", web::post().to(handlers::create_judge_prompt))
+                    .route("/active", web::get().to(handlers::get_active_judge_prompt))
+                    .route("/active", web::put().to(handlers::set_active_judge_prompt))
+                    .route("/{version}", web::get().to(handlers::get_judge_prompt_by_version))
+            )
     );
 }
