@@ -3,7 +3,7 @@
   <img width="687" height="391" alt="Screenshot from 2025-10-13 21-00-43" src="https://github.com/user-attachments/assets/43b41099-8cbb-47e8-81c3-dbacf5b225a8" />
 </div> -->
 
-<img width="412" height="412" alt="unnamed" src="https://github.com/user-attachments/assets/76bccec4-68fc-4a6c-a8d3-a84194822b2b" />
+<img width="350" height="350" alt="evaluate" src="https://github.com/user-attachments/assets/76bccec4-68fc-4a6c-a8d3-a84194822b2b" />
 
 
 ---
@@ -271,35 +271,104 @@ curl -X POST http://127.0.0.1:8080/api/v1/evals/batch \
 
 Base URL: `http://localhost:8080/api/v1`
 
-## Health & System
+### Health & System
 
 | Method | Endpoint | Description | Request Body | Response |
 |--------|----------|-------------|--------------|----------|
 | GET | `/health` | Health check endpoint | - | `{"status": "healthy", "service": "eval-api", "version": "..."}` |
 | GET | `/models` | List all available models | - | `{"models": ["gemini:model-name", "ollama:model-name", ...]}` |
 
-## Evaluations
+### Evaluations
 
 | Method | Endpoint | Description | Request Body | Response |
 |--------|----------|-------------|--------------|----------|
-| POST | `/evals/run` | Run a single evaluation | [RunEvalRequest](#runevalrequest) | [EvalResponse](#evalresponse) |
-| POST | `/evals/batch` | Run multiple evaluations concurrently | Array of [EvalConfig](#evalconfig) | [BatchEvalResponse](#batchevalresponse) |
-| GET | `/evals/history` | Get all evaluation history | - | [HistoryResponse](#historyresponse) |
+| POST | `/evals/run` | Run a single evaluation | `RunEvalRequest` | `EvalResponse` |
+| POST | `/evals/batch` | Run multiple evaluations concurrently | Array of `EvalConfig` | `BatchEvalResponse` |
+| GET | `/evals/history` | Get all evaluation history | - | `HistoryResponse` |
 | GET | `/evals/{id}` | Get specific evaluation result | - | Evaluation details |
 | GET | `/evals/{id}/status` | Get evaluation status | - | `{"id": "...", "status": "...", "progress": 100}` |
 
-## Experiments
+### Judge Prompts
 
 | Method | Endpoint | Description | Request Body | Response |
 |--------|----------|-------------|--------------|----------|
-| POST | `/experiments` | Create a new experiment | [CreateExperimentRequest](#createexperimentrequest) | [ExperimentResponse](#experimentresponse) |
+| GET | `/judge-prompts` | Get all judge prompt versions | - | `{"prompts": [JudgePrompt, ...]}` |
+| GET | `/judge-prompts/active` | Get the currently active judge prompt | - | `{"prompt": JudgePrompt}` |
+| GET | `/judge-prompts/{version}` | Get a specific judge prompt by version | - | `{"prompt": JudgePrompt}` |
+| POST | `/judge-prompts` | Create a new judge prompt version | `CreateJudgePromptRequest` | `{"prompt": JudgePrompt}` |
+| PUT | `/judge-prompts/active` | Set a judge prompt version as active | `{"version": 2}` | `{"message": "Judge prompt version 2 is now active"}` |
+
+#### Judge Prompt Request/Response Types
+
+**CreateJudgePromptRequest:**
+```json
+{
+  "name": "My Custom Prompt",
+  "template": "You are an evaluator...\nExpected: {{expected}}\nActual: {{actual}}",
+  "description": "Optional description",
+  "set_active": false
+}
+```
+
+**JudgePrompt:**
+```json
+{
+  "version": 1,
+  "name": "Default Judge Prompt",
+  "template": "Template with {{expected}} and {{actual}} placeholders",
+  "description": "Description of this prompt version",
+  "is_active": true,
+  "created_at": "2025-01-19T12:34:56Z"
+}
+```
+
+### Experiments
+
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+| POST | `/experiments` | Create a new experiment | `CreateExperimentRequest` | `ExperimentResponse` |
 | GET | `/experiments/{id}` | Get experiment details | - | Experiment details with results |
 
-## WebSocket
+### WebSocket
 
 | Protocol | Endpoint | Description | Message Format |
 |----------|----------|-------------|----------------|
-| WS | `/ws` | Real-time evaluation updates | [EvalUpdate](#evalupdate) |
+| WS | `/ws` | Real-time evaluation updates | `EvalUpdate` |
+
+#### Example curl Commands
+
+```bash
+# Get all judge prompts
+curl http://localhost:8080/api/v1/judge-prompts
+
+# Get active judge prompt
+curl http://localhost:8080/api/v1/judge-prompts/active
+
+# Create a new judge prompt
+curl -X POST http://localhost:8080/api/v1/judge-prompts \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Strict Evaluator",
+    "template": "Compare:\nExpected: {{expected}}\nActual: {{actual}}\nVerdict: PASS or FAIL",
+    "description": "Requires exact semantic match",
+    "set_active": true
+  }'
+
+# Set a specific version as active
+curl -X PUT http://localhost:8080/api/v1/judge-prompts/active \
+  -H "Content-Type: application/json" \
+  -d '{"version": 2}'
+
+# Run an evaluation
+curl -X POST http://localhost:8080/api/v1/evals/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini:gemini-1.5-flash-latest",
+    "prompt": "What is 2+2?",
+    "expected": "4",
+    "judge_model": "gemini:gemini-1.5-pro-latest"
+  }'
+```
 
 ---
 
