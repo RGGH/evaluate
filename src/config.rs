@@ -170,6 +170,19 @@ impl EvalConfig {
     }
 }
 
+// /// Simple template renderer using regex.
+// /// enables parameterized test cases
+// fn render_template(template: &str, data: &serde_json::Value) -> String {
+//     let re = Regex::new(r"\{\{\s*(\w+)\s*\}\}").unwrap();
+//     re.replace_all(template, |caps: &regex::Captures| {
+//         let key = &caps[1];
+//         data.get(key)
+//             .and_then(|v| v.as_str())
+//             .map(|s| s.to_string())
+//             .unwrap_or_else(|| caps[0].to_string())
+//     }).to_string()
+// }
+
 /// Simple template renderer using regex.
 /// enables parameterized test cases
 fn render_template(template: &str, data: &serde_json::Value) -> String {
@@ -177,8 +190,12 @@ fn render_template(template: &str, data: &serde_json::Value) -> String {
     re.replace_all(template, |caps: &regex::Captures| {
         let key = &caps[1];
         data.get(key)
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
+            .map(|v| match v {
+                serde_json::Value::String(s) => s.clone(),
+                serde_json::Value::Number(n) => n.to_string(),
+                serde_json::Value::Bool(b) => b.to_string(),
+                _ => v.to_string().trim_matches('"').to_string(),
+            })
             .unwrap_or_else(|| caps[0].to_string())
     }).to_string()
 }

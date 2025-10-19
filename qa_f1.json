@@ -1,0 +1,48 @@
+[
+  {
+    "model": "gemini-2.5-flash",
+    "prompt": "Who won the Formula 1 World Championship in {{year}}?",
+    "expected": "{{winner}}",
+    "judge_model": "gemini-2.5-pro",
+    "criteria": "The model must name the correct Formula 1 Drivers' World Champion for the specified year.",
+    "tags": ["motorsport", "history", "formula1"],
+    "metadata": { "year": 1984, "winner": "Niki Lauda" }
+  },
+  {
+    "model": "gemini-2.5-flash",
+    "prompt": "Which Formula 1 team did {{driver}} drive for during the {{year}} season?",
+    "expected": "{{team}}",
+    "judge_model": "gemini-2.5-pro",
+    "criteria": "The model must correctly identify the Formula 1 team the driver was part of in that specific season.",
+    "tags": ["motorsport", "teams", "formula1"],
+    "metadata": { "driver": "Ayrton Senna", "year": 1988, "team": "McLaren-Honda" }
+  },
+  {
+    "model": "gemini-2.5-flash",
+    "prompt": "In which year did the turbocharged engines dominate Formula 1, leading to some of the fastest qualifying laps in history?",
+    "expected": "{{year}}",
+    "judge_model": "gemini-2.5-pro",
+    "criteria": "The model must correctly identify the period when turbocharged engines reached their peak dominance in Formula 1 performance.",
+    "tags": ["motorsport", "technology", "formula1"],
+    "metadata": { "year": 1986 }
+  },
+  {
+    "model": "gemini-2.5-flash",
+    "prompt": "During the {{year}} Monaco Grand Prix, which driver famously crashed while leading the race near the finish?",
+    "expected": "{{driver}}",
+    "judge_model": "gemini-2.5-pro",
+    "criteria": "The model must correctly identify the driver who made the notable error while leading late in the Monaco Grand Prix that year.",
+    "tags": ["motorsport", "race-events", "formula1"],
+    "metadata": { "year": 1988, "driver": "Ayrton Senna" }
+  },
+  {
+    "model": "gemini-2.5-flash",
+    "prompt": "Which constructor won the most Constructors' Championships during the 1980s in Formula 1?",
+    "expected": "{{constructor}}",
+    "judge_model": "gemini-2.5-pro",
+    "criteria": "The model must identify the team with the highest number of Constructors' titles in the decade of the 1980s.",
+    "tags": ["motorsport", "records", "formula1"],
+    "metadata": { "constructor": "McLaren" }
+  }
+]
+
