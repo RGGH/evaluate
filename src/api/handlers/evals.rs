@@ -1,4 +1,4 @@
-// src/api/handlers/evals.rs - Fixed to save ALL evaluations to database
+// src/api/handlers/evals.rs - Updated to pass db_pool to runner
 use actix_web::{web, HttpResponse, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -56,7 +56,10 @@ pub async fn run_eval(
         metadata: None,
     };
 
-    match runner::run_eval(&state.config, &eval_config, &state.client).await {
+    // 🆕 Pass db_pool to runner for dynamic judge prompt loading
+    let db_pool_ref = state.db_pool.as_ref();
+    
+    match runner::run_eval_with_pool(&state.config, &eval_config, &state.client, db_pool_ref.as_ref()).await {
         Ok(result) => {
             let status = if let Some(judge) = &result.judge_result {
                 match judge.verdict {
@@ -130,7 +133,7 @@ pub async fn run_eval(
                 error: Some(error_string.clone()),
             };
 
-            // ✅ FIX: Save error to database too!
+            // Save error to database
             if let Some(pool) = state.db_pool.as_ref() {
                 println!("💾 Saving error evaluation to database: {}", eval_id);
                 let api_response = crate::models::ApiResponse {
@@ -167,10 +170,14 @@ pub async fn run_batch(
     let batch_id = Uuid::new_v4().to_string();
     let total = eval_configs.len();
 
-    let results = runner::run_batch_evals(
+    // 🆕 Pass db_pool to runner for dynamic judge prompt loading
+    let db_pool_ref = state.db_pool.as_ref();
+    
+    let results = runner::run_batch_evals_with_pool(
         &state.config,
         eval_configs.into_inner(),
         &state.client,
+        db_pool_ref.as_ref(),
     ).await;
 
     let mut responses = Vec::new();
@@ -257,7 +264,6 @@ pub async fn run_batch(
                     error: Some(error_string.clone()),
                 };
 
-                // ✅ FIX: Save batch errors to database too!
                 if let Some(pool) = state.db_pool.as_ref() {
                     let api_response = crate::models::ApiResponse {
                         id: eval_id,

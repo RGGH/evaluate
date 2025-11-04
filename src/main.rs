@@ -56,7 +56,7 @@ async fn main() -> std::io::Result<()> {
     println!("🔌 WebSocket endpoint at ws://127.0.0.1:8080/api/v1/ws");
 
     HttpServer::new(move || {
-        let cors = Cors::permissive();
+        let cors = Cors::permissive(); // for local deployment
         
         App::new()
             .app_data(web::Data::new(state.clone()))

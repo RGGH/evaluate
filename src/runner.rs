@@ -7,13 +7,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::time::Instant;
 use regex::Regex;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EvalResult {
     pub model: String,
     pub prompt: String,
-    pub model_output: String,                    // Raw output for debugging
-    pub parsed_output: Option<JsonValue>,        // Structured output if parseable
+    pub model_output: String,
+    pub parsed_output: Option<JsonValue>,
     pub expected: Option<String>,
     pub judge_result: Option<JudgeResult>,
     pub timestamp: String,
@@ -22,6 +23,7 @@ pub struct EvalResult {
     pub token_usage: Option<TokenUsage>,
     pub judge_token_usage: Option<TokenUsage>,
     pub total_latency_ms: u64,
+    pub judge_prompt_version: Option<i64>,  // NEW: Track which judge prompt was used
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -78,23 +80,18 @@ fn parse_judge_response(response: &str) -> JudgeResult {
     }
 }
 
-/// Enhanced judge prompt with better structure
-fn create_judge_prompt(expected: &str, actual: &str, criteria: Option<&str>) -> String {
-    let base_criteria = criteria.unwrap_or(
-        "The outputs should convey the same core meaning, even if phrased differently."
-    );
-
-    format!(
-        r#"You are an expert evaluator comparing two text outputs.
+/// Default judge prompt template (fallback if database is unavailable)
+fn get_default_judge_prompt_template() -> String {
+    r#"You are an expert evaluator comparing two text outputs.
 
 EVALUATION CRITERIA:
-{}
+{{criteria}}
 
 EXPECTED OUTPUT:
-{}
+{{expected}}
 
 ACTUAL OUTPUT:
-{}
+{{actual}}
 
 INSTRUCTIONS:
 1. Carefully compare both outputs
@@ -102,44 +99,70 @@ INSTRUCTIONS:
 3. Provide your verdict as the first line: "Verdict: PASS" or "Verdict: FAIL"
 4. Then explain your reasoning in 2-3 sentences
 
-Your evaluation:"#,
-        base_criteria,
-        expected,
-        actual
-    )
+Your evaluation:"#.to_string()
+}
+
+/// Render judge prompt template with actual values
+fn render_judge_prompt(template: &str, expected: &str, actual: &str, criteria: Option<&str>) -> String {
+    let base_criteria = criteria.unwrap_or(
+        "The outputs should convey the same core meaning, even if phrased differently."
+    );
+    
+    template
+        .replace("{{criteria}}", base_criteria)
+        .replace("{{expected}}", expected)
+        .replace("{{actual}}", actual)
+}
+
+/// Load judge prompt from database or use default
+async fn get_judge_prompt_template(db_pool: Option<&SqlitePool>) -> (String, Option<i64>) {
+    if let Some(pool) = db_pool {
+        match crate::database::get_active_judge_prompt(pool).await {
+            Ok(prompt) => {
+                println!("📋 Using judge prompt v{}: {}", prompt.version, prompt.name);
+                return (prompt.template, Some(prompt.version));
+            }
+            Err(e) => {
+                log::warn!("Could not load judge prompt from database: {}. Using default.", e);
+            }
+        }
+    }
+    
+    println!("📋 Using default judge prompt template");
+    (get_default_judge_prompt_template(), None)
+}
+
+/// Enhanced judge prompt with better structure (DEPRECATED - kept for compatibility)
+#[deprecated(note = "Use get_judge_prompt_template and render_judge_prompt instead")]
+fn create_judge_prompt(expected: &str, actual: &str, criteria: Option<&str>) -> String {
+    let template = get_default_judge_prompt_template();
+    render_judge_prompt(&template, expected, actual, criteria)
 }
 
 /// Attempt to parse model output into structured JSON
-/// This tries multiple strategies in order of specificity
 pub fn parse_model_output(raw_output: &str) -> Option<JsonValue> {
-    // Strategy 1: Try parsing the entire output as JSON
     if let Ok(json) = serde_json::from_str::<JsonValue>(raw_output) {
         return Some(json);
     }
 
-    // Strategy 2: Look for JSON code blocks (```json ... ```)
     if let Some(json) = extract_json_code_block(raw_output) {
         if let Ok(parsed) = serde_json::from_str::<JsonValue>(&json) {
             return Some(parsed);
         }
     }
 
-    // Strategy 3: Extract numbers (for math/calculation tasks)
     if let Some(number) = extract_number(raw_output) {
         return Some(serde_json::json!({ "answer": number }));
     }
 
-    // Strategy 4: Extract yes/no boolean
     if let Some(boolean) = extract_boolean(raw_output) {
         return Some(serde_json::json!({ "answer": boolean }));
     }
 
-    // Strategy 5: Extract multiple choice answer (A, B, C, D)
     if let Some(choice) = extract_multiple_choice(raw_output) {
         return Some(serde_json::json!({ "answer": choice }));
     }
 
-    // Strategy 6: Try to extract key-value pairs from natural language
     if let Some(structured) = extract_key_value_pairs(raw_output) {
         return Some(structured);
     }
@@ -147,7 +170,6 @@ pub fn parse_model_output(raw_output: &str) -> Option<JsonValue> {
     None
 }
 
-/// Extract JSON from code blocks
 fn extract_json_code_block(text: &str) -> Option<String> {
     let re = Regex::new(r"```(?:json)?\s*\n([\s\S]*?)\n```").ok()?;
     re.captures(text)
@@ -155,13 +177,11 @@ fn extract_json_code_block(text: &str) -> Option<String> {
         .map(|m| m.as_str().to_string())
 }
 
-/// Extract numeric answer from text
 fn extract_number(text: &str) -> Option<f64> {
-    // Look for patterns like "The answer is 42" or "Result: 3.14"
     let patterns = [
         r"(?:answer|result|solution)(?:\s+is)?[:\s]+(-?\d+\.?\d*)",
-        r"^(-?\d+\.?\d*)$",  // Just a number
-        r"\b(-?\d+\.?\d*)\b(?:\s*$)", // Number at end
+        r"^(-?\d+\.?\d*)$",
+        r"\b(-?\d+\.?\d*)\b(?:\s*$)",
     ];
 
     for pattern in &patterns {
@@ -178,7 +198,6 @@ fn extract_number(text: &str) -> Option<f64> {
     None
 }
 
-/// Extract boolean answer from text
 fn extract_boolean(text: &str) -> Option<bool> {
     let text_lower = text.to_lowercase().trim().to_string();
     
@@ -193,7 +212,6 @@ fn extract_boolean(text: &str) -> Option<bool> {
     None
 }
 
-/// Extract multiple choice answer (A, B, C, D, etc.)
 fn extract_multiple_choice(text: &str) -> Option<String> {
     let re = Regex::new(r"(?:answer|choice)(?:\s+is)?[:\s]+([A-Za-z])").ok()?;
     re.captures(text)
@@ -201,11 +219,8 @@ fn extract_multiple_choice(text: &str) -> Option<String> {
         .map(|m| m.as_str().to_uppercase())
 }
 
-/// Extract key-value pairs from structured text
 fn extract_key_value_pairs(text: &str) -> Option<JsonValue> {
     let mut map = serde_json::Map::new();
-    
-    // Look for patterns like "Name: John" or "Age: 25"
     let re = Regex::new(r"(?m)^([A-Za-z\s]+):\s*(.+)$").ok()?;
     
     for caps in re.captures_iter(text) {
@@ -213,7 +228,6 @@ fn extract_key_value_pairs(text: &str) -> Option<JsonValue> {
             let key_str = key.as_str().trim().to_lowercase().replace(' ', "_");
             let value_str = value.as_str().trim();
             
-            // Try to parse value as number or boolean
             if let Ok(num) = value_str.parse::<f64>() {
                 map.insert(key_str, JsonValue::Number(serde_json::Number::from_f64(num)?));
             } else if let Some(bool_val) = extract_boolean(value_str) {
@@ -231,8 +245,6 @@ fn extract_key_value_pairs(text: &str) -> Option<JsonValue> {
     }
 }
 
-/// Parses a model string like "provider:model_name" and returns the provider and model.
-/// Defaults to "gemini" if no provider is specified.
 fn parse_model_string(model_str: &str) -> (String, String) {
     match model_str.split_once(':') {
         Some((provider, model)) => (provider.to_string(), model.to_string()),
@@ -240,7 +252,6 @@ fn parse_model_string(model_str: &str) -> (String, String) {
     }
 }
 
-/// Call the appropriate provider based on the provider name
 async fn call_provider(
     config: &AppConfig,
     client: &reqwest::Client,
@@ -283,6 +294,16 @@ pub async fn run_eval(
     eval: &EvalConfig,
     client: &reqwest::Client,
 ) -> Result<EvalResult> {
+    run_eval_with_pool(config, eval, client, None).await
+}
+
+/// Run eval with optional database pool for judge prompt loading
+pub async fn run_eval_with_pool(
+    config: &AppConfig,
+    eval: &EvalConfig,
+    client: &reqwest::Client,
+    db_pool: Option<&SqlitePool>,
+) -> Result<EvalResult> {
     let rendered_eval = eval.render()?;
     let eval_start = Instant::now();
     let separator = "=".repeat(60);
@@ -291,7 +312,6 @@ pub async fn run_eval(
     println!("🎯 Starting evaluation for model: {}", rendered_eval.model);
     println!("{}\n", separator);
 
-    // Step 1: Call the target model
     let (provider_name, model_name) = parse_model_string(&rendered_eval.model);
     
     println!("📝 Prompt: {}", rendered_eval.prompt);
@@ -318,7 +338,6 @@ pub async fn run_eval(
 
     println!("\n✅ Model Output ({}ms):\n{}\n", latency_ms, &model_output_str);
     
-    // Parse the output into structured format
     let parsed_output = parse_model_output(&model_output_str);
     if let Some(ref parsed) = parsed_output {
         println!("📊 Parsed Output: {}", serde_json::to_string_pretty(parsed).unwrap_or_else(|_| "Unable to display".to_string()));
@@ -326,15 +345,23 @@ pub async fn run_eval(
         println!("⚠️  Could not parse output into structured format");
     }
 
-    // Step 2: Run judge evaluation if expected output provided
+    // Step 2: Run judge evaluation with dynamic prompt loading
     let mut judge_latency_ms = None;
     let mut judge_token_usage = None;
+    let mut judge_prompt_version = None;
+    
     let judge_result = if let (Some(expected), Some(judge_model)) =
         (&rendered_eval.expected, &rendered_eval.judge_model) {
         
         println!("⚖️  Running judge evaluation with model: {}", judge_model);
         
-        let judge_prompt = create_judge_prompt(
+        // 🆕 Load judge prompt from database
+        let (judge_prompt_template, version) = get_judge_prompt_template(db_pool).await;
+        judge_prompt_version = version;
+        
+        // Render the template with actual values
+        let judge_prompt = render_judge_prompt(
+            &judge_prompt_template,
             expected,
             &model_output_str,
             rendered_eval.criteria.as_deref()
@@ -402,6 +429,7 @@ pub async fn run_eval(
         },
         judge_token_usage,
         total_latency_ms,
+        judge_prompt_version,  // 🆕 Store which version was used
     })
 }
 
@@ -411,12 +439,22 @@ pub async fn run_batch_evals(
     evals: Vec<EvalConfig>,
     client: &reqwest::Client,
 ) -> Vec<Result<EvalResult>> {
+    run_batch_evals_with_pool(config, evals, client, None).await
+}
+
+/// Run batch evals with optional database pool
+pub async fn run_batch_evals_with_pool(
+    config: &AppConfig,
+    evals: Vec<EvalConfig>,
+    client: &reqwest::Client,
+    db_pool: Option<&SqlitePool>,
+) -> Vec<Result<EvalResult>> {
     let batch_start = Instant::now();
     let total_evals = evals.len();
 
     let futures: Vec<_> = evals
         .iter()
-        .map(|eval| run_eval(config, eval, client))
+        .map(|eval| run_eval_with_pool(config, eval, client, db_pool))
         .collect();
 
     let results = future::join_all(futures).await;
@@ -426,95 +464,3 @@ pub async fn run_batch_evals(
 
     results
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn test_parse_model_string_with_provider() {
-//         let (provider, model) = parse_model_string("anthropic:claude-sonnet-4");
-//         assert_eq!(provider, "anthropic");
-//         assert_eq!(model, "claude-sonnet-4");
-//     }
-
-//     #[test]
-//     fn test_parse_model_string_default_provider() {
-//         let (provider, model) = parse_model_string("gemini-1.5-flash");
-//         assert_eq!(provider, "gemini");
-//         assert_eq!(model, "gemini-1.5-flash");
-//     }
-
-//     #[test]
-//     fn test_judge_verdict_display() {
-//         assert_eq!(JudgeVerdict::Pass.to_string(), "Pass");
-//         assert_eq!(JudgeVerdict::Fail.to_string(), "Fail");
-//         assert_eq!(JudgeVerdict::Uncertain.to_string(), "Uncertain");
-//     }
-
-//     #[test]
-//     fn test_parse_json_output() {
-//         let output = r#"{"name": "Alice", "age": 30}"#;
-//         let parsed = parse_model_output(output);
-//         assert!(parsed.is_some());
-//         assert_eq!(parsed.unwrap()["name"], "Alice");
-//     }
-
-//     #[test]
-//     fn test_parse_json_code_block() {
-//         let output = r#"
-// Here's the result:
-// ```json
-// {"answer": 42}
-// ```
-// "#;
-//         let parsed = parse_model_output(output);
-//         assert!(parsed.is_some());
-//         assert_eq!(parsed.unwrap()["answer"], 42);
-//     }
-
-//     #[test]
-//     fn test_parse_number() {
-//         let output = "The answer is 42";
-//         let parsed = parse_model_output(output);
-//         assert!(parsed.is_some());
-//         assert_eq!(parsed.unwrap()["answer"], 42);
-//     }
-
-//     #[test]
-//     fn test_parse_boolean() {
-//         let output = "Yes, that is correct";
-//         let parsed = parse_model_output(output);
-//         assert!(parsed.is_some());
-//         assert_eq!(parsed.unwrap()["answer"], true);
-//     }
-
-//     #[test]
-//     fn test_parse_multiple_choice() {
-//         let output = "The answer is B";
-//         let parsed = parse_model_output(output);
-//         assert!(parsed.is_some());
-//         assert_eq!(parsed.unwrap()["answer"], "B");
-//     }
-
-//     #[test]
-//     fn test_parse_key_value_pairs() {
-//         let output = r#"
-// Name: John Doe
-// Age: 25
-// City: New York
-// "#;
-//         let parsed = parse_model_output(output);
-//         assert!(parsed.is_some());
-//         let obj = parsed.unwrap();
-//         assert_eq!(obj["name"], "John Doe");
-//         assert_eq!(obj["age"], 25);
-//     }
-
-//     #[test]
-//     fn test_unparseable_output() {
-//         let output = "This is just random text without structure";
-//         let parsed = parse_model_output(output);
-//         assert!(parsed.is_none());
-//     }
-// }
