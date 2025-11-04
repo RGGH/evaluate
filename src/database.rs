@@ -1,60 +1,85 @@
-// src/database.rs - Fixed directory creation
-use crate::models::{ApiResponse, EvalResult};
-use sqlx::{sqlite::SqlitePoolOptions, Row, SqlitePool};
-use std::path::PathBuf;
+// src/database.rs
 
-pub async fn init_db() -> Result<SqlitePool, sqlx::Error> {
-    let db_path = get_db_path()?;
+use crate::models::{ApiResponse, EvalResult};
+use sqlx::{
+    migrate::Migrator,
+    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+    Row, SqlitePool,
+};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
+use chrono::Utc; // Import chrono::Utc for use in structs and functions
+
+// =======================================================
+// Database Initialization
+// =======================================================
+
+/// Initializes the SQLite database connection pool.
+/// It ensures the necessary parent directory exists and runs migrations.
+pub async fn init_db() -> Result<SqlitePool, Box<dyn std::error::Error>> {
+    let db_path = get_db_path_for_fs()?;
     
-    // Create parent directory BEFORE attempting to connect
+    // 1. Extract and create the directory FIRST
     if let Some(parent) = db_path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(sqlx::Error::Io)?;
-        println!("✅ Created database directory: {}", parent.display());
+        if !parent.exists() {
+            println!("💾 Database directory does not exist, creating: {}", parent.display());
+            std::fs::create_dir_all(parent)?;
+        }
     }
     
-    // Ensure the path is absolute and properly formatted
-    let absolute_path = if db_path.is_relative() {
-        std::env::current_dir()
-            .map_err(sqlx::Error::Io)?
-            .join(&db_path)
-    } else {
-        db_path.clone()
-    };
+    // 2. Build the connection options using the original URL
+    let db_url = std::env::var("DATABASE_URL")?;
     
-    println!("📦 Database file path: {}", absolute_path.display());
-    
-    // SQLite connection string needs to be properly formatted
-    let db_url = format!("sqlite://{}?mode=rwc", absolute_path.display());
-    println!("📦 Connecting to: {}", db_url);
+    // We connect with the original URL, which sqlx handles, after ensuring the directory exists.
+    let connection_options = SqliteConnectOptions::from_str(&db_url)?
+        .create_if_missing(true);
 
+    println!("📦 Connecting to database using URL: {}", db_url);
+
+    // 3. Connect and create pool
     let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect(&db_url)
+        .connect_with(connection_options)
         .await?;
+        
+    // 4. Run migrations
+    run_migrations(&pool).await?;
 
-    println!("✅ Database connected successfully");
-
-    // Run migrations from the migrations directory
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await?;
-
-    println!("✅ Database migrations completed");
-
+    println!("✅ Database connection successful and migrations applied.");
+    
     Ok(pool)
 }
 
-fn get_db_path() -> Result<PathBuf, sqlx::Error> {
-    let db_url = std::env::var("DATABASE_URL")
-        .map_err(|_| sqlx::Error::Configuration("DATABASE_URL must be set".into()))?;
+/// Helper function to retrieve and clean the database file path from the DATABASE_URL 
+/// for **File System (FS) operations** (i.e., directory creation).
+fn get_db_path_for_fs() -> Result<PathBuf, sqlx::Error> {
+    let db_url = std::env::var("DATABASE_URL").map_err(|e| {
+        eprintln!("❌ DATABASE_URL environment variable not set: {}", e);
+        sqlx::Error::Configuration("DATABASE_URL must be set".into())
+    })?;
     
+    // Remove the "sqlite:" prefix
     let db_path_str = db_url.strip_prefix("sqlite:").ok_or_else(|| {
+        eprintln!("❌ DATABASE_URL must start with 'sqlite:' but got: {}", db_url);
         sqlx::Error::Configuration("DATABASE_URL must start with 'sqlite:'".into())
     })?;
     
+    // We return a simple PathBuf, which is what std::fs::create_dir_all expects.
     Ok(PathBuf::from(db_path_str))
 }
+
+/// Runs the database migrations located in the 'migrations' directory.
+async fn run_migrations(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Error>> {
+    let migrator = Migrator::new(std::path::Path::new("./migrations")).await?;
+    migrator.run(pool).await?;
+    Ok(())
+}
+
+
+// =======================================================
+// Save and retrieve evaluations
+// =======================================================
 
 pub async fn save_evaluation(pool: &SqlitePool, response: &ApiResponse) -> Result<(), sqlx::Error> {
     let id = &response.id;
@@ -76,52 +101,44 @@ pub async fn save_evaluation(pool: &SqlitePool, response: &ApiResponse) -> Resul
         judge_input_tokens,
         judge_output_tokens,
         created_at,
+        judge_prompt_version,
     ) = match &response.result {
-            EvalResult::Success(res) => (
-                Some(res.model.clone()),
-                Some(res.prompt.clone()),
-                Some(res.model_output.clone()),
-                res.expected.clone(),
-                res.judge_result.as_ref().map(|j| j.judge_model.clone()),
-                res.judge_result.as_ref().map(|j| j.verdict.to_string()),
-                res.judge_result.as_ref().map(|j| j.reasoning.clone()),
-                None,
-                // Model Latency & Tokens
-                Some(res.latency_ms as i64),
-                res.judge_latency_ms.map(|l| l as i64),
-                res.token_usage.as_ref().and_then(|u| u.input_tokens.map(|t| t as i64)),
-                res.token_usage.as_ref().and_then(|u| u.output_tokens.map(|t| t as i64)),
-                res.judge_token_usage.as_ref().and_then(|u| u.input_tokens.map(|t| t as i64)),
-                res.judge_token_usage.as_ref().and_then(|u| u.output_tokens.map(|t| t as i64)),
-                Some(res.timestamp.clone()),
-            ),
-            EvalResult::Error(err) => (
-                // All fields are None except error_message
-                // The order here must match the tuple declaration above
-                None, // model
-                None, // prompt
-                None, // model_output
-                None, // expected
-                None, // judge_model
-                None, // judge_verdict
-                None, // judge_reasoning
-                Some(err.message.clone()),
-                None, // latency_ms
-                None, // judge_latency_ms
-                None, // input_tokens
-                None, // output_tokens
-                None, // judge_input_tokens
-                None, // judge_output_tokens
-                None, // created_at
-            ),
-        };
+        EvalResult::Success(res) => (
+            Some(res.model.clone()),
+            Some(res.prompt.clone()),
+            Some(res.model_output.clone()),
+            res.expected.clone(),
+            res.judge_result.as_ref().map(|j| j.judge_model.clone()),
+            res.judge_result.as_ref().map(|j| j.verdict.to_string()),
+            res.judge_result.as_ref().map(|j| j.reasoning.clone()),
+            None,
+            Some(res.latency_ms as i64),
+            res.judge_latency_ms.map(|l| l as i64),
+            res.token_usage.as_ref().and_then(|u| u.input_tokens.map(|t| t as i64)),
+            res.token_usage.as_ref().and_then(|u| u.output_tokens.map(|t| t as i64)),
+            res.judge_token_usage.as_ref().and_then(|u| u.input_tokens.map(|t| t as i64)),
+            res.judge_token_usage.as_ref().and_then(|u| u.output_tokens.map(|t| t as i64)),
+            Some(res.timestamp.clone()),
+            res.judge_prompt_version,
+        ),
+        EvalResult::Error(err) => (
+            None, None, None, None, None, None, None,
+            Some(err.message.clone()),
+            None, None, None, None, None, None, None, None,
+        ),
+    };
 
-    let created_at_str = created_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+    let created_at_str = created_at.unwrap_or_else(|| Utc::now().to_rfc3339());
 
     sqlx::query(
         r#" 
-        INSERT INTO evaluations (id, status, model, prompt, model_output, expected, judge_model, judge_verdict, judge_reasoning, error_message, latency_ms, judge_latency_ms, input_tokens, output_tokens, judge_input_tokens, judge_output_tokens, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO evaluations (
+            id, status, model, prompt, model_output, expected, 
+            judge_model, judge_verdict, judge_reasoning, error_message, 
+            latency_ms, judge_latency_ms, input_tokens, output_tokens, 
+            judge_input_tokens, judge_output_tokens, created_at, judge_prompt_version
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#
     )
     .bind(id)
@@ -141,16 +158,25 @@ pub async fn save_evaluation(pool: &SqlitePool, response: &ApiResponse) -> Resul
     .bind(judge_input_tokens)
     .bind(judge_output_tokens)
     .bind(&created_at_str)
+    .bind(judge_prompt_version)
     .execute(pool)
     .await?;
 
     Ok(())
 }
 
+// =======================================================
+// Query evaluations
+// =======================================================
+
 pub async fn get_all_evaluations(pool: &SqlitePool) -> Result<Vec<HistoryEntry>, sqlx::Error> {
     let rows = sqlx::query(
         r#"
-        SELECT id, status, model, prompt, model_output, expected, judge_model, judge_verdict, judge_reasoning, error_message, latency_ms, judge_latency_ms, input_tokens, output_tokens, judge_input_tokens, judge_output_tokens, created_at
+        SELECT 
+            id, status, model, prompt, model_output, expected, 
+            judge_model, judge_verdict, judge_reasoning, error_message, 
+            latency_ms, judge_latency_ms, input_tokens, output_tokens, 
+            judge_input_tokens, judge_output_tokens, created_at, judge_prompt_version
         FROM evaluations
         ORDER BY created_at DESC
         "#
@@ -176,9 +202,16 @@ pub async fn get_all_evaluations(pool: &SqlitePool) -> Result<Vec<HistoryEntry>,
         judge_input_tokens: row.get(14),
         judge_output_tokens: row.get(15),
         created_at: row.get(16),
+        judge_prompt_version: row.get(17),
     }).collect())
 }
 
+// =======================================================
+// Structs (Needed for compilation)
+// =======================================================
+
+// NOTE: These structs must be defined here as they are not explicitly imported
+// in the provided code snippet.
 #[derive(serde::Serialize, Clone)]
 pub struct HistoryEntry {
     pub id: String,
@@ -198,9 +231,8 @@ pub struct HistoryEntry {
     pub judge_input_tokens: Option<i64>,
     pub judge_output_tokens: Option<i64>,
     pub created_at: String,
+    pub judge_prompt_version: Option<i64>,
 }
-
-// Add these to src/database.rs after the HistoryEntry struct
 
 #[derive(serde::Serialize, Clone)]
 pub struct JudgePrompt {
@@ -212,7 +244,10 @@ pub struct JudgePrompt {
     pub created_at: String,
 }
 
-/// Get all judge prompt versions
+// =======================================================
+// Judge prompt functions
+// =======================================================
+
 pub async fn get_all_judge_prompts(pool: &SqlitePool) -> Result<Vec<JudgePrompt>, sqlx::Error> {
     let rows = sqlx::query(
         r#"
@@ -234,7 +269,6 @@ pub async fn get_all_judge_prompts(pool: &SqlitePool) -> Result<Vec<JudgePrompt>
     }).collect())
 }
 
-/// Get the currently active judge prompt
 pub async fn get_active_judge_prompt(pool: &SqlitePool) -> Result<JudgePrompt, sqlx::Error> {
     let row = sqlx::query(
         r#"
@@ -257,7 +291,6 @@ pub async fn get_active_judge_prompt(pool: &SqlitePool) -> Result<JudgePrompt, s
     })
 }
 
-/// Get a specific judge prompt by version
 pub async fn get_judge_prompt_by_version(pool: &SqlitePool, version: i64) -> Result<JudgePrompt, sqlx::Error> {
     let row = sqlx::query(
         r#"
@@ -280,7 +313,6 @@ pub async fn get_judge_prompt_by_version(pool: &SqlitePool, version: i64) -> Res
     })
 }
 
-/// Create a new judge prompt version
 pub async fn create_judge_prompt(
     pool: &SqlitePool,
     name: String,
@@ -288,19 +320,16 @@ pub async fn create_judge_prompt(
     description: Option<String>,
     set_active: bool,
 ) -> Result<JudgePrompt, sqlx::Error> {
-    let created_at = chrono::Utc::now().to_rfc3339();
+    let created_at = Utc::now().to_rfc3339();
     
-    // Start a transaction
     let mut tx = pool.begin().await?;
     
-    // If set_active is true, deactivate all other prompts
     if set_active {
         sqlx::query("UPDATE judge_prompts SET is_active = FALSE")
             .execute(&mut *tx)
             .await?;
     }
     
-    // Insert the new prompt
     let result = sqlx::query(
         r#"
         INSERT INTO judge_prompts (name, template, description, is_active, created_at)
@@ -316,7 +345,6 @@ pub async fn create_judge_prompt(
     .fetch_one(&mut *tx)
     .await?;
     
-    // Commit the transaction
     tx.commit().await?;
     
     Ok(JudgePrompt {
@@ -329,22 +357,21 @@ pub async fn create_judge_prompt(
     })
 }
 
-/// Set a judge prompt version as active
 pub async fn set_active_judge_prompt(pool: &SqlitePool, version: i64) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
     
-    // Verify the version exists
+    // Check if the version exists
     sqlx::query("SELECT version FROM judge_prompts WHERE version = ?")
         .bind(version)
         .fetch_one(&mut *tx)
         .await?;
     
-    // Deactivate all prompts
+    // Deactivate all others
     sqlx::query("UPDATE judge_prompts SET is_active = FALSE")
         .execute(&mut *tx)
         .await?;
     
-    // Activate the specified version
+    // Activate the specified one
     sqlx::query("UPDATE judge_prompts SET is_active = TRUE WHERE version = ?")
         .bind(version)
         .execute(&mut *tx)
