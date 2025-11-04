@@ -427,6 +427,26 @@ Models are specified in the format `provider:model_name`:
 
 If no provider is specified, `gemini` is used as the default.
 
+
+### 📝 Judge Prompt Management
+
+This framework now supports versioned and dynamically loaded judge prompts, allowing you to change the LLM evaluation criteria without restarting the server.
+
+**Key Features:**
+* **Version Control:** Prompts are stored in the database with version numbers.
+* **API Control:** The active prompt can be set via a dedicated API endpoint.
+
+**Default Prompt:** An initial default judge prompt is inserted automatically by the database migration.
+
+### API Endpoints for Prompts
+
+| Method | Endpoint | Description | Body |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/judge-prompts/active` | Retrieves the currently active prompt template. | N/A |
+| `POST` | `/api/v1/judge-prompts` | Creates a new prompt version. | `{name: "new prompt", template: "...", set_active: false}` |
+| `PUT` | `/api/v1/judge-prompts/active` | **Sets a specific version as active.** | `{version: 3}` (Requires the version number) |
+
+
 ## Understanding LLM-as-Judge Limitations
 
 ### Knowledge Recency
