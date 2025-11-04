@@ -446,6 +446,50 @@ This framework now supports versioned and dynamically loaded judge prompts, allo
 | `POST` | `/api/v1/judge-prompts` | Creates a new prompt version. | `{name: "new prompt", template: "...", set_active: false}` |
 | `PUT` | `/api/v1/judge-prompts/active` | **Sets a specific version as active.** | `{version: 3}` (Requires the version number) |
 
+## Example: Create New Judge Prompt
+
+```bash
+curl -X POST 'http://127.0.0.1:8080/api/v1/judge-prompts' \
+-H 'Content-Type: application/json' \
+-d '{
+    "name": "Relaxed Math Judge",
+    "template": "You are an expert evaluator comparing two text outputs. When evaluating mathematical or factual answers, prioritize the core numerical or fact value. Ignore auxiliary text, equations, or prefixes (like \"The answer is\") if the core value is correct. EVALUATION CRITERIA: {{criteria}} EXPECTED OUTPUT: {{expected}} ACTUAL OUTPUT: {{actual}} INSTRUCTIONS: 1. Carefully compare both outputs 2. Provide your verdict as the first line: \"Verdict: PASS\" or \"Verdict: FAIL\" 3. Then explain your reasoning in 2-3 sentences. Your evaluation:",
+    "description": "A prompt designed to be less strict than the default, allowing for correct answers that include extraneous text.",
+    "set_active": false
+}'
+```
+
+Key Components Explained:
+
+    -X POST: Specifies the HTTP method.
+
+    http://127.0.0.1:8080/api/v1/judge-prompts: Your local API endpoint for creating prompts.
+
+    -H 'Content-Type: application/json': Tells the server to expect JSON data in the body.
+
+    -d '...': The data payload containing the fields required by your create_judge_prompt handler:
+
+        name: A human-readable identifier.
+
+        template: The full new prompt text, which now includes instructions to be more flexible on matching.
+
+        set_active: We set this to false because we usually create the prompt first, then manually activate it (Step 2).
+        
+
+Next Step: Activating the New Prompt
+
+After running the POST command, the API will respond with the newly created JudgePrompt object, which includes its unique version number (e.g., version: 2).
+
+You would then use a PUT request to make that new version the official, active prompt:
+
+
+## Example curl command to set version 2 as active
+```bash
+curl -X PUT 'http://127.0.0.1:8080/api/v1/judge-prompts/active' \
+-H 'Content-Type: application/json' \
+-d '{"version": 2}'
+```
+
 
 ## Understanding LLM-as-Judge Limitations
 
