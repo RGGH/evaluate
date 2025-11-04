@@ -1,114 +1,114 @@
-# permissions:
-#   contents: write
-#   actions: write
-#   id-token: write  # Required for keyless signing with OIDC
+permissions:
+  contents: write
+  actions: write
+  id-token: write  # Required for keyless signing with OIDC
 
-# name: Build and Release Rust Binary
+name: Build and Release Rust Binary
 
-# on:
-#   push:
-#     branches: [main]
-#     tags:
-#       - 'v*'
-#   pull_request:
-#     branches: [main]
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
 
-# jobs:
-#   build:
-#     name: Build on ${{ matrix.os }}
-#     strategy:
-#       matrix:
-#         include:
-#           - os: ubuntu-latest
-#             artifact_name: evaluate
-#             archive_name: evaluate.linux.tar.gz
-#           - os: windows-latest
-#             artifact_name: evaluate.exe
-#             archive_name: evaluate.windows.zip
-#           - os: macos-latest
-#             artifact_name: evaluate
-#             archive_name: evaluate.macos.tar.gz
-#     runs-on: ${{ matrix.os }}
-#     steps:
-#       - uses: actions/checkout@v3
-#       - name: Install Rust
-#         uses: actions-rs/toolchain@v1
-#         with:
-#           profile: minimal
-#           toolchain: stable
-#           override: true
-#       - name: Build
-#         uses: actions-rs/cargo@v1
-#         with:
-#           command: build
-#           args: --release
-#       - name: Compress Binary (Unix)
-#         if: runner.os != 'Windows'
-#         run: |
-#           cd target/release
-#           tar -czvf "${{ matrix.archive_name }}" "${{ matrix.artifact_name }}"
-#       - name: Compress Binary (Windows)
-#         if: runner.os == 'Windows'
-#         run: |
-#           Compress-Archive -Path "target/release/${{ matrix.artifact_name }}" -DestinationPath "target/release/${{ matrix.archive_name }}"
-#         shell: pwsh
-#       - name: Upload Build Artifact
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: ${{ matrix.archive_name }}
-#           path: target/release/${{ matrix.archive_name }}
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: evaluate
+            archive_name: evaluate.linux.tar.gz
+          - os: windows-latest
+            artifact_name: evaluate.exe
+            archive_name: evaluate.windows.zip
+          - os: macos-latest
+            artifact_name: evaluate
+            archive_name: evaluate.macos.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - name: Compress Binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/release
+          tar -czvf "${{ matrix.archive_name }}" "${{ matrix.artifact_name }}"
+      - name: Compress Binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Compress-Archive -Path "target/release/${{ matrix.artifact_name }}" -DestinationPath "target/release/${{ matrix.archive_name }}"
+        shell: pwsh
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive_name }}
+          path: target/release/${{ matrix.archive_name }}
 
-#   release:
-#     name: Create and Upload Release
-#     needs: [build]
-#     if: github.ref == 'refs/heads/main'
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v3
-#         with:
-#           fetch-depth: 0
-#       - name: Configure Git
-#         run: |
-#           git config user.name github-actions
-#           git config user.email github-actions@github.com
-#       - name: Generate tag
-#         id: tag
-#         run: |
-#           TAG_NAME="v$(date +'%Y%m%d%H%M%S')"
-#           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
-#           git tag $TAG_NAME
-#           git push origin $TAG_NAME
-#       - name: Download all workflow artifacts
-#         uses: actions/download-artifact@v4
-#         with:
-#           path: artifacts
-#       - name: Prepare release files
-#         run: |
-#           mkdir -p release_files
-#           find artifacts -type f -exec cp {} release_files/ \;
-#           ls -la release_files/
-#       - name: Install Cosign
-#         uses: sigstore/cosign-installer@main
-#       - name: Sign artifacts (Keyless)
-#         run: |
-#           for file in release_files/*; do
-#             echo "Signing file: $file"
-#             cosign sign-blob --yes "$file" \
-#               --output-signature "${file}.sig" \
-#               --output-certificate "${file}.pem" \
-#               --bundle "${file}.sig.bundle"
-#             # Verify the files exist
-#             ls -la "${file}.sig" "${file}.pem" "${file}.sig.bundle" || true
-#           done
-#           echo "Files in release_files directory after signing:"
-#           ls -la release_files/
-#       - name: Create Release
-#         uses: softprops/action-gh-release@v1
-#         with:
-#           files: release_files/*
-#           tag_name: ${{ steps.tag.outputs.TAG_NAME }}
-#           name: Release ${{ steps.tag.outputs.TAG_NAME }}
-#           draft: false
-#           prerelease: false
-#         env:
-#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  release:
+    name: Create and Upload Release
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Configure Git
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+      - name: Generate tag
+        id: tag
+        run: |
+          TAG_NAME="v$(date +'%Y%m%d%H%M%S')"
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
+          git tag $TAG_NAME
+          git push origin $TAG_NAME
+      - name: Download all workflow artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Prepare release files
+        run: |
+          mkdir -p release_files
+          find artifacts -type f -exec cp {} release_files/ \;
+          ls -la release_files/
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
+      - name: Sign artifacts (Keyless)
+        run: |
+          for file in release_files/*; do
+            echo "Signing file: $file"
+            cosign sign-blob --yes "$file" \
+              --output-signature "${file}.sig" \
+              --output-certificate "${file}.pem" \
+              --bundle "${file}.sig.bundle"
+            # Verify the files exist
+            ls -la "${file}.sig" "${file}.pem" "${file}.sig.bundle" || true
+          done
+          echo "Files in release_files directory after signing:"
+          ls -la release_files/
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release_files/*
+          tag_name: ${{ steps.tag.outputs.TAG_NAME }}
+          name: Release ${{ steps.tag.outputs.TAG_NAME }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
