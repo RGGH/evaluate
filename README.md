@@ -14,10 +14,10 @@ A lightweight, flexible evaluation 'eval' framework for testing models with auto
 Step 1: Build the Question for the Judge
 We create a prompt that asks another AI model to evaluate the first model's answer. This prompt contains:
 
-The rules for what counts as a good answer (you can customize these or use the defaults)
-What the correct answer should be
-What the model actually said
-Simple instructions telling the judge how to evaluate
+  The rules for what counts as a good answer (you can customize these or use the defaults)
+  What the correct answer should be
+  What the model actually said
+  Simple instructions telling the judge how to evaluate
 
 Step 2: Send to the Right AI Service
 
