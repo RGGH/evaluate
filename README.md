@@ -14,16 +14,16 @@ A lightweight, flexible evaluation 'eval' framework for testing models with auto
 Step 1: Build the Question for the Judge
 We create a prompt that asks another AI model to evaluate the first model's answer. This prompt contains:
 
-  The rules for what counts as a good answer (you can customize these or use the defaults)
-  What the correct answer should be
-  What the model actually said
-  Simple instructions telling the judge how to evaluate
+  - The rules for what counts as a good answer (you can customize these or use the defaults)
+  - What the correct answer should be
+  - What the model actually said
+  - Simple instructions telling the judge how to evaluate
 
 Step 2: Send to the Right AI Service
 
-We figure out which AI service to use (like Anthropic, OpenAI, etc.) from the judge model name
-We send the evaluation question to that service (using the same system we used for the first model)
-We track how long it takes and how many tokens it uses
+  - We figure out which AI service to use (like Anthropic, OpenAI, etc.) from the judge model name
+  - We send the evaluation question to that service (using the same system we used for the first model)
+  - We track how long it takes and how many tokens it uses
 
 Step 3: Understand the Judge's Answer
 We read the judge model's response and pull out:
