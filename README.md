@@ -1,6 +1,6 @@
 [![Rust Tests](https://github.com/RGGH/evaluate/actions/workflows/test.yml/badge.svg)](https://github.com/RGGH/evaluate/actions/workflows/test.yml)
 
-<img width="350" height="350" alt="evaluate" src="https://github.com/user-attachments/assets/76bccec4-68fc-4a6c-a8d3-a84194822b2b" />
+<img width="150" height="150" alt="evaluate" src="https://github.com/user-attachments/assets/76bccec4-68fc-4a6c-a8d3-a84194822b2b" />
 <img width="864" height="561" alt="image" src="https://github.com/user-attachments/assets/47f11b9d-dbaa-4503-8d0f-87a15484a9aa" />
 
 
