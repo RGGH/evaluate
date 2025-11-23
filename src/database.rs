@@ -7,7 +7,7 @@ use sqlx::{
     Row, SqlitePool,
 };
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     str::FromStr,
 };
 use chrono::Utc; // Import chrono::Utc for use in structs and functions

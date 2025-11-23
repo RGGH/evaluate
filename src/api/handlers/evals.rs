@@ -1,4 +1,4 @@
-// src/api/handlers/evals.rs - Updated to pass db_pool to runner
+// src/api/handlers/evals.rs - Complete fixed version
 use actix_web::{web, HttpResponse, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -56,10 +56,10 @@ pub async fn run_eval(
         metadata: None,
     };
 
-    // 🆕 Pass db_pool to runner for dynamic judge prompt loading
-    let db_pool_ref = state.db_pool.as_ref();
+    // Extract the pool reference properly for the new Option<Arc<SqlitePool>> structure
+    let db_pool_ref = state.db_pool.as_ref().map(|arc| arc.as_ref());
     
-    match runner::run_eval_with_pool(&state.config, &eval_config, &state.client, db_pool_ref.as_ref()).await {
+    match runner::run_eval_with_pool(&state.config, &eval_config, &state.client, db_pool_ref).await {
         Ok(result) => {
             let status = if let Some(judge) = &result.judge_result {
                 match judge.verdict {
@@ -88,14 +88,14 @@ pub async fn run_eval(
             };
 
             // Save to database
-            if let Some(pool) = state.db_pool.as_ref() {
+            if let Some(pool_arc) = state.db_pool.as_ref() {
                 println!("💾 Saving successful evaluation to database: {}", eval_id);
                 let api_response = crate::models::ApiResponse {
                     id: eval_id.clone(),
                     status: status.to_string(),
                     result: crate::models::EvalResult::Success(result),
                 };
-                match crate::database::save_evaluation(pool, &api_response).await {
+                match crate::database::save_evaluation(pool_arc, &api_response).await {
                     Ok(_) => println!("✅ Successfully saved evaluation {} to database", eval_id),
                     Err(e) => {
                         eprintln!("❌ Failed to save evaluation to database: {}", e);
@@ -134,7 +134,7 @@ pub async fn run_eval(
             };
 
             // Save error to database
-            if let Some(pool) = state.db_pool.as_ref() {
+            if let Some(pool_arc) = state.db_pool.as_ref() {
                 println!("💾 Saving error evaluation to database: {}", eval_id);
                 let api_response = crate::models::ApiResponse {
                     id: eval_id.clone(),
@@ -143,7 +143,7 @@ pub async fn run_eval(
                         message: error_string.clone(),
                     }),
                 };
-                match crate::database::save_evaluation(pool, &api_response).await {
+                match crate::database::save_evaluation(pool_arc, &api_response).await {
                     Ok(_) => println!("✅ Successfully saved error evaluation {} to database", eval_id),
                     Err(e) => {
                         eprintln!("❌ Failed to save error evaluation to database: {}", e);
@@ -170,14 +170,14 @@ pub async fn run_batch(
     let batch_id = Uuid::new_v4().to_string();
     let total = eval_configs.len();
 
-    // 🆕 Pass db_pool to runner for dynamic judge prompt loading
-    let db_pool_ref = state.db_pool.as_ref();
+    // Extract the pool reference properly for the new Option<Arc<SqlitePool>> structure
+    let db_pool_ref = state.db_pool.as_ref().map(|arc| arc.as_ref());
     
     let results = runner::run_batch_evals_with_pool(
         &state.config,
         eval_configs.into_inner(),
         &state.client,
-        db_pool_ref.as_ref(),
+        db_pool_ref,
     ).await;
 
     let mut responses = Vec::new();
@@ -233,13 +233,13 @@ pub async fn run_batch(
                     error: None,
                 };
 
-                if let Some(pool) = state.db_pool.as_ref() {
+                if let Some(pool_arc) = state.db_pool.as_ref() {
                     let api_response = crate::models::ApiResponse {
                         id: eval_id,
                         status: status.to_string(),
                         result: crate::models::EvalResult::Success(eval_result),
                     };
-                    if let Err(e) = crate::database::save_evaluation(pool, &api_response).await {
+                    if let Err(e) = crate::database::save_evaluation(pool_arc, &api_response).await {
                         log::error!("Failed to save batch evaluation to database: {}", e);
                     }
                 }
@@ -264,7 +264,7 @@ pub async fn run_batch(
                     error: Some(error_string.clone()),
                 };
 
-                if let Some(pool) = state.db_pool.as_ref() {
+                if let Some(pool_arc) = state.db_pool.as_ref() {
                     let api_response = crate::models::ApiResponse {
                         id: eval_id,
                         status: "error".to_string(),
@@ -272,7 +272,7 @@ pub async fn run_batch(
                             message: error_string,
                         }),
                     };
-                    if let Err(e) = crate::database::save_evaluation(pool, &api_response).await {
+                    if let Err(e) = crate::database::save_evaluation(pool_arc, &api_response).await {
                         log::error!("Failed to save batch error to database: {}", e);
                     }
                 }
@@ -324,8 +324,8 @@ pub struct HistoryResponse {
 }
 
 pub async fn get_history(state: web::Data<AppState>) -> Result<HttpResponse> {
-    if let Some(pool) = state.db_pool.as_ref() {
-        match crate::database::get_all_evaluations(pool).await {
+    if let Some(pool_arc) = state.db_pool.as_ref() {
+        match crate::database::get_all_evaluations(pool_arc).await {
             Ok(history) => Ok(HttpResponse::Ok().json(HistoryResponse { results: history })),
             Err(e) => {
                 log::error!("Failed to fetch evaluation history: {}", e);
