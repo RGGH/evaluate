@@ -7,19 +7,24 @@ use std::sync::Arc;
 pub struct AppState {
     pub config: Arc<AppConfig>,
     pub client: Client,
-    pub db_pool: Arc<Option<SqlitePool>>,
+    pub db_pool: Option<Arc<SqlitePool>>,
 }
 
 impl AppState {
     pub async fn new(config: AppConfig) -> Self {
-        let db_pool = crate::database::init_db()
-            .await
-            .ok();
+        // Get the pool, convert Result to Option, then wrap in Arc
+        let db_pool = match crate::database::init_db().await {
+            Ok(pool) => Some(Arc::new(pool)),
+            Err(e) => {
+                eprintln!("⚠️  Failed to initialize database: {}", e);
+                None
+            }
+        };
 
         Self {
             config: Arc::new(config),
             client: Client::new(),
-            db_pool: Arc::new(db_pool),
+            db_pool,  // Now it's Option<Arc<SqlitePool>>
         }
     }
 }
