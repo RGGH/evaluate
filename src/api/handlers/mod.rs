@@ -5,6 +5,7 @@ mod experiments;
 mod history;
 pub mod ws;
 mod judge_prompts;
+mod prompt_versions;
 
 pub use health::health_check;
 pub use evals::{run_eval, run_batch, get_eval, get_status, get_history, get_models};
@@ -12,3 +13,4 @@ pub use experiments::{create_experiment, get_experiment};
 pub use ws::{ws_handler, WsBroker};
 
 pub use judge_prompts::*;
+pub use prompt_versions::*; 

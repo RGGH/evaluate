@@ -381,3 +381,175 @@ pub async fn set_active_judge_prompt(pool: &SqlitePool, version: i64) -> Result<
     
     Ok(())
 }
+
+// =======================================================
+// Prompt Version Management
+// =======================================================
+
+#[derive(serde::Serialize, Clone)]
+pub struct PromptVersion {
+    pub version: i64,
+    pub name: String,
+    pub prompt_template: String,
+    pub description: Option<String>,
+    pub tags: Option<String>,
+    pub metadata: Option<String>,
+    pub is_active: bool,
+    pub created_at: String,
+    pub created_by: Option<String>,
+}
+
+pub async fn get_all_prompt_versions(pool: &SqlitePool) -> Result<Vec<PromptVersion>, sqlx::Error> {
+    let rows = sqlx::query(
+        r#"
+        SELECT version, name, prompt_template, description, tags, metadata, 
+               is_active, created_at, created_by
+        FROM prompt_versions
+        ORDER BY version DESC
+        "#
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows.into_iter().map(|row| PromptVersion {
+        version: row.get(0),
+        name: row.get(1),
+        prompt_template: row.get(2),
+        description: row.get(3),
+        tags: row.get(4),
+        metadata: row.get(5),
+        is_active: row.get(6),
+        created_at: row.get(7),
+        created_by: row.get(8),
+    }).collect())
+}
+
+pub async fn get_active_prompt_version(pool: &SqlitePool) -> Result<PromptVersion, sqlx::Error> {
+    let row = sqlx::query(
+        r#"
+        SELECT version, name, prompt_template, description, tags, metadata,
+               is_active, created_at, created_by
+        FROM prompt_versions
+        WHERE is_active = TRUE
+        LIMIT 1
+        "#
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(PromptVersion {
+        version: row.get(0),
+        name: row.get(1),
+        prompt_template: row.get(2),
+        description: row.get(3),
+        tags: row.get(4),
+        metadata: row.get(5),
+        is_active: row.get(6),
+        created_at: row.get(7),
+        created_by: row.get(8),
+    })
+}
+
+pub async fn create_prompt_version(
+    pool: &SqlitePool,
+    name: String,
+    prompt_template: String,
+    description: Option<String>,
+    tags: Option<Vec<String>>,
+    set_active: bool,
+) -> Result<PromptVersion, sqlx::Error> {
+    let created_at = Utc::now().to_rfc3339();
+    let tags_json = tags.map(|t| serde_json::to_string(&t).unwrap());
+    
+    let mut tx = pool.begin().await?;
+    
+    if set_active {
+        sqlx::query("UPDATE prompt_versions SET is_active = FALSE")
+            .execute(&mut *tx)
+            .await?;
+    }
+    
+    let result = sqlx::query(
+        r#"
+        INSERT INTO prompt_versions (name, prompt_template, description, tags, is_active, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        RETURNING version, name, prompt_template, description, tags, metadata, is_active, created_at, created_by
+        "#
+    )
+    .bind(&name)
+    .bind(&prompt_template)
+    .bind(&description)
+    .bind(&tags_json)
+    .bind(set_active)
+    .bind(&created_at)
+    .fetch_one(&mut *tx)
+    .await?;
+    
+    tx.commit().await?;
+    
+    Ok(PromptVersion {
+        version: result.get(0),
+        name: result.get(1),
+        prompt_template: result.get(2),
+        description: result.get(3),
+        tags: result.get(4),
+        metadata: result.get(5),
+        is_active: result.get(6),
+        created_at: result.get(7),
+        created_by: result.get(8),
+    })
+}
+
+pub async fn link_evaluation_to_prompt(
+    pool: &SqlitePool,
+    evaluation_id: &str,
+    prompt_version: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO prompt_evaluations (evaluation_id, prompt_version)
+        VALUES (?, ?)
+        "#
+    )
+    .bind(evaluation_id)
+    .bind(prompt_version)
+    .execute(pool)
+    .await?;
+    
+    Ok(())
+}
+
+pub async fn get_prompt_version_stats(pool: &SqlitePool, version: i64) -> Result<PromptStats, sqlx::Error> {
+    let row = sqlx::query(
+        r#"
+        SELECT 
+            COUNT(*) as total_evals,
+            SUM(CASE WHEN judge_verdict = 'Pass' THEN 1 ELSE 0 END) as passed,
+            AVG(latency_ms) as avg_latency,
+            AVG(judge_latency_ms) as avg_judge_latency
+        FROM evaluations e
+        JOIN prompt_evaluations pe ON e.id = pe.evaluation_id
+        WHERE pe.prompt_version = ?
+        "#
+    )
+    .bind(version)
+    .fetch_one(pool)
+    .await?;
+    
+    Ok(PromptStats {
+        version,
+        total_evaluations: row.get(0),
+        passed: row.get(1),
+        avg_latency_ms: row.get::<Option<f64>, _>(2).unwrap_or(0.0),
+        avg_judge_latency_ms: row.get::<Option<f64>, _>(3).unwrap_or(0.0),
+    })
+}
+
+#[derive(serde::Serialize)]
+pub struct PromptStats {
+    pub version: i64,
+    pub total_evaluations: i64,
+    pub passed: i64,
+    pub avg_latency_ms: f64,
+    pub avg_judge_latency_ms: f64,
+}

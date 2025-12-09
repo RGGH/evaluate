@@ -494,6 +494,42 @@ curl -X PUT 'http://127.0.0.1:8080/api/v1/judge-prompts/active' \
 -d '{"version": 2}'
 ```
 
+## 📝 New: Prompt Versioning & A/B Testing
+
+Track and optimize your evaluation prompts with built-in version control. Test different prompt formulations, compare performance metrics, and identify which strategies work best for each model.
+
+### Why Use Prompt Versioning?
+
+- **Data-Driven Decisions**: Compare pass rates, latency, and token usage across prompt variations
+- **A/B Testing**: Run identical evaluations with different prompts to find optimal formulations
+- **Team Collaboration**: Build a shared library of proven prompt templates
+- **Regression Prevention**: Ensure prompt changes don't degrade performance
+
+### Quick Example
+
+```bash
+# Create a new prompt version
+curl -X POST http://localhost:8080/api/v1/prompt-versions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Chain-of-Thought",
+    "prompt_template": "Think step-by-step:\n\n{{prompt}}\n\nReasoning:",
+    "tags": ["cot", "reasoning"],
+    "set_active": true
+  }'
+
+# Compare performance
+curl http://localhost:8080/api/v1/prompt-versions/2/stats
+# Response: {"version": 2, "total_evaluations": 47, "passed": 43, "pass_rate": 0.915}
+```
+
+### Use Cases
+
+- **Prompt Engineering**: Test "direct" vs "chain-of-thought" vs "structured output" approaches
+- **Multi-Language**: Compare prompt performance across different languages
+- **Domain-Specific**: Build specialized prompts for math, coding, creative writing, etc.
+- **Model Optimization**: Find which prompts work best for GPT-4, Claude, Gemini, etc.
+
 
 ## Understanding LLM-as-Judge Limitations
 

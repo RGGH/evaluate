@@ -29,5 +29,12 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
                     .route("/active", web::put().to(handlers::set_active_judge_prompt))
                     .route("/{version}", web::get().to(handlers::get_judge_prompt_by_version))
             )
+            .service(  
+                web::scope("/prompt-versions")
+                    .route("", web::get().to(handlers::get_all_prompt_versions))
+                    .route("", web::post().to(handlers::create_prompt_version))
+                    .route("/active", web::get().to(handlers::get_active_prompt_version))
+                    .route("/{version}/stats", web::get().to(handlers::get_prompt_version_stats))
+            ) 
     );
 }
