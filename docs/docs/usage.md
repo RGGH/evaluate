@@ -7,6 +7,7 @@ sidebar_position: 2
 Make batch eval using the API
 
 ## step 1 : edit the qa_sample.json in the project root
+Alterrnative make your own, using the same structure as below
 
 ```json
 [

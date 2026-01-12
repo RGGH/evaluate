@@ -21,10 +21,12 @@ Or **try Evaluate immediately** by cloning from **[GitHub](https://github.com/RG
 
 - [Rust](https://www.rust-lang.org/tools/install) version 1.70 or above
 - [Node.js](https://nodejs.org/en/download/) version 20.0 or above (for the documentation site)
-- An LLM Provider:
+- An LLM Provider, for example:
+  - An OpenAI or Claude subscription API KEY
   - A Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-  - Or a running [Ollama](https://ollama.com/) instance for local models.
+  - Or a running [Ollama](https://ollama.com/) instance for local models
 - Git for version control
+- Sqlite ~ (installed by default)
 
 ## Clone and Setup
 
@@ -91,10 +93,14 @@ Open your browser and navigate to `http://127.0.0.1:8080` to access the **built-
 
 Now that your server is running, you can:
 
-- Test the API with sample curl commands
+- Test the API with sample cURL commands
 - Use the web interface to run single evaluations
 - Submit batch evaluations using JSON files
 - View your evaluation history in the GUI
 
 Explore the documentation to learn more about configuring models, writing eval definitions, and using the AI-powered judging capabilities.
-```
+
+## Clear the database
+If you wish to start again or clear the results, you can delete the database and it will create a new one next time you run evaluate.
+
+`rm data/evals.db`
