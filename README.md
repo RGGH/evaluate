@@ -34,7 +34,6 @@ If we can't tell what the verdict is, we mark it as "Uncertain"
 
 ▶️ [Watch on YouTube](https://youtu.be/5qybexiclFo)
 
-
 ## Features
 
 - SQLite database for saving history
@@ -55,6 +54,7 @@ https://pypi.org/project/llmeval-sdk/
 (Example usage with Python is shown on that PyPi page)
 
 ## Quick Start
+▶️ [Watch on YouTube](https://youtu.be/dElgP6LN29s?si=VqtXcRbazHqt8kvm)
 
 ### Prerequisites
 
