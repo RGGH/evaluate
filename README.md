@@ -45,9 +45,9 @@ If we can't tell what the verdict is, we mark it as "Uncertain"
 - Python SDK available
 - Real-time WebSocket updates
 
-### Python SDK
+### Python SDK [optional]
 
-If you want to use 'evaluate' via your own Python scripts or Jupyter Notebooks, you can use the SDK:
+'evaluate' has a built in GUI and API, but if you want to use 'evaluate' via your own Python scripts or Jupyter Notebooks, you can use this SDK:
 
 https://pypi.org/project/llmeval-sdk/
 
